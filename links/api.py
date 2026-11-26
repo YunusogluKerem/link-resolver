@@ -31,7 +31,7 @@ class LinkProductSerializer(serializers.ModelSerializer):
         model = LinkProducts
         fields = [
             "id", "link_id", "content_id", "platform", "product_id", "source",
-            "product_name", "brand", "status", "fetched_at",
+            "product_name", "brand", "status", "fetched_at", "http_version",
         ]  # fmt: skip
 
 

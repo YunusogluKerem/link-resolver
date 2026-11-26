@@ -3,6 +3,7 @@ from unittest import mock
 
 import httpx
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TransactionTestCase
 from django.utils import timezone
 
@@ -33,6 +34,18 @@ class ParseProductTests(SimpleTestCase):
         og = '<title>Mop Seti | Bir Mağaza</title><meta property="og:title" content="Mop Seti 1+1"/>'
         self.assertEqual(parse_product(og), ("Mop Seti 1+1", ""))
         self.assertEqual(parse_product("<title>\n Mop Seti | Bir Mağaza </title>"), ("Mop Seti | Bir Mağaza", ""))
+
+    def test_shop_additions_are_removed_from_a_page_title(self):
+        titles = {
+            "Tchibo Üniversal Soyucu - Fiyatı": "Tchibo Üniversal Soyucu",
+            "Tchibo Üniversal Soyucu - Fiyatı, Yorumları": "Tchibo Üniversal Soyucu",
+            "Roborock S9 Robot Süpürge - Beyaz Fiyatı": "Roborock S9 Robot Süpürge - Beyaz",
+            "Bingo Tablet 40'lı Fiyatı ve Yorumları | Trendyol": "Bingo Tablet 40'lı",
+            "Kolye Fiyatları - n11.com": "Kolye",
+            "Fiyatı Uygun Mop Seti": "Fiyatı Uygun Mop Seti",  # only at the end
+        }
+        for title, name in titles.items():
+            self.assertEqual(parse_product(f"<title>{title}</title>"), (name, ""), title)
 
     def test_page_without_a_name(self):
         self.assertEqual(parse_product("<html><body>bos</body></html>"), ("", ""))
@@ -157,3 +170,100 @@ class FetchProductsCommandTests(TransactionTestCase):
 
         self.assertEqual(calls, urls[2:])  # only the three that were left
         self.assertEqual(LinkProducts.objects.filter(status="ok", product_name="Kazak").count(), 5)
+
+    def test_after_a_refusal_the_pause_is_the_cooldown(self):
+        Links.objects.all().delete()
+        urls = [f"https://www.shopier.com/birmagaza/{number}000000" for number in range(41, 45)]
+        for number, url in enumerate(urls, start=41):
+            make_link(number, url)
+        call_command("extract_products", stdout=StringIO())
+        page = httpx.Response(200, html='<meta property="og:title" content="Kazak"/>')
+        routes = {urls[0]: page, urls[1]: httpx.Response(429), urls[2]: page, urls[3]: page}
+        sleep = mock.AsyncMock()
+
+        def fake_client(**kwargs) -> httpx.AsyncClient:
+            return httpx.AsyncClient(transport=httpx.MockTransport(lambda request: routes[str(request.url)]))
+
+        with (
+            mock.patch("links.management.commands.fetch_products.build_client", fake_client),
+            mock.patch("links.management.commands.fetch_products.asyncio.sleep", sleep),
+        ):
+            call_command("fetch_products", "--platform", "shopier", "--delay", "2", "--cooldown", "45", stdout=StringIO())
+
+        # normal pause, then the long one after the refused request, then normal again
+        self.assertEqual([call.args[0] for call in sleep.await_args_list], [2.0, 45.0, 2.0])
+        self.assertEqual(LinkProducts.objects.filter(status="ok").count(), 3)
+
+    def test_every_link_gets_its_first_products_before_any_link_gets_all(self):
+        Links.objects.all().delete()
+        make_link(51, "https://www.trendyol.com/sr/?mid=1&id=11,12,13,14")
+        make_link(52, "https://www.trendyol.com/sr/?mid=2&id=21,22,12")  # 12 is shared with the first link
+        call_command("extract_products", stdout=StringIO())
+        page = httpx.Response(200, html=JSON_LD)
+        ids = ["11", "12", "13", "14", "21", "22"]
+        routes = {f"https://www.trendyol.com/x/x-p-{product_id}": page for product_id in ids}
+        order = lambda calls: [url.rsplit("-", 1)[1] for url in calls]  # noqa: E731
+
+        _, calls = self._run(routes, "--platform", "trendyol", "--per-link", "2")
+        self.assertEqual(order(calls), ["11", "21", "12", "22"])  # two per link, link by link
+
+        _, calls = self._run(routes, "--platform", "trendyol")
+        self.assertEqual(order(calls), ["13", "14"])  # the rest; product 12 was read once for both links
+
+    def test_proxy_is_used_only_when_asked_for(self):
+        seen: list = []
+
+        def fake_client(**kwargs) -> httpx.AsyncClient:
+            seen.append(kwargs.get("proxy"))
+            return httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(403)))
+
+        address = "http://user:secret@proxy.example:823"
+        with (
+            mock.patch("links.management.commands.fetch_products.build_client", fake_client),
+            mock.patch("links.management.commands.fetch_products.asyncio.sleep", mock.AsyncMock()),
+            mock.patch.dict("os.environ", {"FETCH_PROXY_URL": address}),
+        ):
+            out = StringIO()
+            call_command("fetch_products", "--platform", "shopier", stdout=out)
+            call_command("fetch_products", "--platform", "shopier", "--retry-failed", "--proxy", stdout=out)
+
+        self.assertEqual(seen, [None, None, address, address])  # two clients per run: HTTP/2 and HTTP/1.1
+        self.assertNotIn("secret", out.getvalue())  # the address is never printed
+
+    def test_proxy_without_an_address_is_an_error(self):
+        with mock.patch.dict("os.environ", {}, clear=True), self.assertRaises(CommandError):
+            call_command("fetch_products", "--proxy", stdout=StringIO())
+
+    def test_site_that_refuses_http2_is_read_over_http1_from_then_on(self):
+        Links.objects.all().delete()
+        make_link(30, "https://www.trendyol.com/sr/?mid=1&id=777,888")
+        make_link(31, HB_PAGE)
+        call_command("extract_products", stdout=StringIO())
+        calls: list[tuple[str, str]] = []
+
+        def fake_client(http2: bool = True, **kwargs) -> httpx.AsyncClient:
+            version = "HTTP/2" if http2 else "HTTP/1.1"
+
+            def handler(request: httpx.Request) -> httpx.Response:
+                calls.append((request.url.host, version))
+                refuse = request.url.host == "www.trendyol.com" and http2
+                if refuse:
+                    return httpx.Response(403, extensions={"http_version": b"HTTP/2"})
+                return httpx.Response(200, html=JSON_LD, extensions={"http_version": version.encode()})
+
+            return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        out = StringIO()
+        with (
+            mock.patch("links.management.commands.fetch_products.build_client", fake_client),
+            mock.patch("links.management.commands.fetch_products.asyncio.sleep", mock.AsyncMock()),
+        ):
+            call_command("fetch_products", "--platform", "trendyol", "--platform", "hepsiburada", stdout=out)
+
+        # HTTP/2 is tried once for Trendyol; after the refusal both products go over HTTP/1.1.
+        trendyol = [version for host, version in calls if host == "www.trendyol.com"]
+        self.assertEqual(trendyol, ["HTTP/2", "HTTP/1.1", "HTTP/1.1"])
+        self.assertIn("HTTP/2 refused, continuing over HTTP/1.1", out.getvalue())
+        versions = dict(LinkProducts.objects.values_list("platform", "http_version"))
+        self.assertEqual(versions, {"trendyol": "HTTP/1.1", "hepsiburada": "HTTP/2"})
+        self.assertEqual(LinkProducts.objects.filter(status="ok").count(), 3)

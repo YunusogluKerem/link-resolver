@@ -54,20 +54,47 @@ class ResolveResult:
     chain: list[dict] = field(default_factory=list)
 
 
-def build_client(timeout: float = 10.0, max_connections: int = 100) -> httpx.AsyncClient:
-    """One shared client: connection pooling and HTTP/2 make repeated hosts cheap."""
+def build_client(
+    timeout: float = 10.0, max_connections: int = 100, proxy: str | None = None, http2: bool = True
+) -> httpx.AsyncClient:
+    """One shared client: connection pooling and HTTP/2 make repeated hosts cheap.
+
+    `http2=False` builds the HTTP/1.1 client that is tried when a site refuses
+    HTTP/2 (see `http2_refused`). `proxy` is only passed by `fetch_products --proxy`.
+    """
     return httpx.AsyncClient(
-        http2=True,
+        http2=http2,
         headers=DEFAULT_HEADERS,
         timeout=httpx.Timeout(timeout),
         limits=httpx.Limits(max_connections=max_connections),
         follow_redirects=False,
+        proxy=proxy,
     )
 
 
+def http2_refused(response: httpx.Response) -> bool:
+    """A 403 answer to an HTTP/2 request.
+
+    Some sites refuse this client's HTTP/2 requests and serve the very same
+    request over HTTP/1.1 (Trendyol does; Hepsiburada does the opposite), so a
+    403 over HTTP/2 is worth one more try over HTTP/1.1.
+    """
+    return response.status_code == 403 and response.http_version == "HTTP/2"
+
+
 class LinkResolver:
-    def __init__(self, client: httpx.AsyncClient, per_host: int = 8, retries: int = 2, backoff: float = 1.0):
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        per_host: int = 8,
+        retries: int = 2,
+        backoff: float = 1.0,
+        http1_client: httpx.AsyncClient | None = None,
+    ):
         self.client = client
+        self.http1_client = http1_client  # optional: tried once when HTTP/2 is refused
+        # Hosts that refused HTTP/2 and answered HTTP/1.1: later requests go straight to HTTP/1.1.
+        self.http1_hosts: set[str] = set()
         self.retries = retries
         self.backoff = backoff
         # One semaphore per host, created on first use.
@@ -93,6 +120,8 @@ class LinkResolver:
                     return _failed(Status.ERROR, chain, request, exc)
 
                 hop = {"url": str(response.url), "status": response.status_code}
+                if response.url.host in self.http1_hosts:
+                    hop["http"] = "HTTP/1.1"  # HTTP/2 was refused here; this is the HTTP/1.1 answer
                 chain.append(hop)
 
                 request = response.next_request  # set by httpx for 3xx + Location
@@ -114,16 +143,36 @@ class LinkResolver:
         """Send one request (retrying 429/503) and return the response plus a peek at its HTML."""
         for attempt in range(self.retries + 1):
             async with self._host_limits[request.url.host]:
-                response = await self.client.send(request, stream=True)
-                try:
-                    page = await _peek_html(response)
-                finally:
-                    await response.aclose()  # drops the rest of the body
+                response, page = await self._send(request)
             if response.status_code not in RETRY_CODES or attempt == self.retries:
                 return response, page
             # Sleep outside the semaphore so other links to this host keep moving.
             await asyncio.sleep(_retry_delay(response, attempt, self.backoff))
         raise AssertionError("unreachable")
+
+    async def _send(self, request: httpx.Request) -> tuple[httpx.Response, str]:
+        """One request. When HTTP/2 is refused with 403, the same request once more over HTTP/1.1."""
+        host = request.url.host
+        client = self.http1_client if host in self.http1_hosts else self.client
+        response, page = await _send_once(client, request)
+        if client is self.client and self.http1_client is not None and http2_refused(response):
+            try:
+                second, second_page = await _send_once(self.http1_client, request)
+            except httpx.HTTPError:
+                return response, page  # keep the answer we have
+            if second.status_code != 403:
+                self.http1_hosts.add(host)
+                return second, second_page
+        return response, page
+
+
+async def _send_once(client: httpx.AsyncClient, request: httpx.Request) -> tuple[httpx.Response, str]:
+    response = await client.send(request, stream=True)
+    try:
+        page = await _peek_html(response)
+    finally:
+        await response.aclose()  # drops the rest of the body
+    return response, page
 
 
 async def _peek_html(response: httpx.Response) -> str:

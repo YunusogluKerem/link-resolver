@@ -14,7 +14,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from links.models import LinkProducts
-from links.resolver import BLOCKED_CODES
+from links.resolver import BLOCKED_CODES, http2_refused
 
 Platform = LinkProducts.Platform
 Status = LinkProducts.FetchStatus
@@ -33,6 +33,8 @@ class ProductPage:
     status: str
     name: str = ""
     brand: str = ""
+    http_version: str = ""  # of the answer: "HTTP/2" or "HTTP/1.1"; "" when there was none
+    refused_http2: bool = False  # worth one more try over HTTP/1.1 (see resolver.http2_refused)
 
 
 def product_url(platform: str, product_id: str, page_url: str = "") -> str | None:
@@ -53,21 +55,23 @@ async def fetch_product(client: httpx.AsyncClient, url: str, product_id: str) ->
     """Never raises: a refused, missing or unreadable page becomes a status."""
     try:
         async with client.stream("GET", url, follow_redirects=True) as response:
+            version = response.http_version
             if response.status_code in BLOCKED_CODES:
-                return ProductPage(Status.BLOCKED)
+                return ProductPage(Status.BLOCKED, http_version=version, refused_http2=http2_refused(response))
             # A removed product answers 404, or redirects to its category page.
             if response.status_code in GONE_CODES or product_id not in str(response.url):
-                return ProductPage(Status.NOT_FOUND)
+                return ProductPage(Status.NOT_FOUND, http_version=version)
             if response.status_code != 200:
-                return ProductPage(Status.ERROR)
-            page = await _read_start(response)
+                return ProductPage(Status.ERROR, http_version=version)
+            page = await read_start(response)
     except httpx.HTTPError:
         return ProductPage(Status.ERROR)
     name, brand = parse_product(page)
-    return ProductPage(Status.OK, name, brand) if name else ProductPage(Status.ERROR)
+    return ProductPage(Status.OK if name else Status.ERROR, name, brand, version)
 
 
-async def _read_start(response: httpx.Response) -> str:
+async def read_start(response: httpx.Response) -> str:
+    """The first MAX_PAGE_BYTES of a page, as text."""
     data = b""
     async for chunk in response.aiter_bytes():
         data += chunk
@@ -82,6 +86,11 @@ _JSON_LD = re.compile(r"<script\b[^>]*application/ld\+json[^>]*>(.*?)</script>",
 _OG_TITLE = re.compile(r"<meta\b[^>]*\b(?:property|name)\s*=\s*[\"']og:title[\"'][^>]*>", re.I)
 _CONTENT_ATTR = re.compile(r"\bcontent\s*=\s*([\"'])(.*?)\1", re.I | re.S)
 _TITLE = re.compile(r"<title\b[^>]*>(.*?)</title>", re.I | re.S)
+# What shops add after the product's name in a page title:
+# "... - Fiyatı", "... Fiyatı, Yorumları", "... Fiyatı ve Yorumları | Trendyol".
+_TITLE_TAIL = re.compile(
+    r"\s*[-–|]?\s*Fiyat(?:ı|ları)(?:\s*(?:,|ve)\s*Yorumları)?\s*(?:[-–|]\s*[\w.]+\s*)?$", re.I
+)
 
 
 def parse_product(page: str) -> tuple[str, str]:
@@ -105,7 +114,10 @@ def parse_product(page: str) -> tuple[str, str]:
     if content and _clean(content.group(2), MAX_NAME):
         return _clean(content.group(2), MAX_NAME), ""
     title = _TITLE.search(page)
-    return (_clean(title.group(1), MAX_NAME) if title else ""), ""
+    if not title:
+        return "", ""
+    name = _clean(title.group(1), MAX_NAME)
+    return _clean(_TITLE_TAIL.sub("", name), MAX_NAME), ""
 
 
 def _find_product(data, depth: int = 0) -> dict | None:

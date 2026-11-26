@@ -108,6 +108,8 @@ class LinkProducts(models.Model):
     brand = models.CharField(max_length=100, blank=True, default="")
     status = models.CharField(max_length=10, choices=FetchStatus.choices, default=FetchStatus.PENDING, db_index=True)
     fetched_at = models.DateTimeField(null=True, blank=True)
+    # Which protocol the page answered on ("HTTP/2" or "HTTP/1.1"): some sites refuse one of them.
+    http_version = models.CharField(max_length=10, blank=True, default="")
 
     class Meta:
         db_table = "link_products"

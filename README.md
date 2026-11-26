@@ -8,7 +8,7 @@ Stack: Python 3.12, Django 5.2 (LTS), Django REST Framework, simplejwt, httpx (a
 
 - **Veri:** 4000 satır, 3305 benzersiz URL; tamamı yaklaşık 3,5 dakikada çözülür.
 - **Son URL:** satırların %98'inde bulunur (3907 / 4000).
-- **Marka:** yalnızca URL'den satırların %17,3'ünde, ürün sayfaları da okununca %17,8'inde tespit edilir. Hepsiburada'da %41, Trendyol'da %1,3; nedeni [Bilinen sınırlamalar](#bilinen-sınırlamalar) bölümündedir.
+- **Marka:** yalnızca URL'den satırların %17,3'ünde, okunan ürün sayfalarıyla %18,0'ında tespit edilir. Hepsiburada'da %41, Trendyol'da %1,7; nedeni [Bilinen sınırlamalar](#bilinen-sınırlamalar) bölümündedir.
 - **Kurulum:** `.env` ve Excel yerine konduktan sonra tek komut: `docker compose up -d`.
 - **API:** yalnızca admin kullanıcıya açık, JWT ile; sayfa başına 1000 kayıt.
 
@@ -53,7 +53,7 @@ Konteyner her açılışta migration'ları uygular ve `.env` içindeki admin kul
 
 Ürün bilgisi için sıra: `extract_products`, `fetch_products`, sonra `detect_brands` (ürün sayfasının söylediği marka, yoksa ürün adının başındaki marka linkin markası olur). `fetch_products` linkleri yeniden çözmez, site başına saniyede bir istek atar ve art arda 5 kez reddedilirse o siteyi bırakır.
 
-**Trendyol notu:** Trendyol IP bazlı engel uygular; aynı IP'den yapılan yoğun taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz. Engellenmemiş farklı bir ağdan (başka bir çıkış IP'si) çalıştırılabilir: `python manage.py fetch_products --platform trendyol --limit 20`. Tam tarama (`--limit` olmadan) 4041 ürün için saniyede bir istekle yaklaşık 70 dakika sürer; kesilirse aynı komut kaldığı yerden devam eder. Ayrıntı: [DESIGN.md](DESIGN.md#ürünler).
+**Trendyol notu:** Trendyol bu istemcinin HTTP/2 isteklerini 403 ile reddeder, aynı isteğe HTTP/1.1 üzerinden cevap verir; komutlar HTTP/2'ye 403 gelince aynı isteği bir kez HTTP/1.1 ile dener. Trendyol ürünleri `--platform trendyol` ile istenir. Trendyol hızı da sınırlar: saniyede bir istekle yaklaşık 35 istekten sonra reddetmeye başladı. Önerilen çalıştırma `fetch_products --platform trendyol --per-link 3 --delay 2.5 --retry-failed`: her linkten 3 ürün (479 ürün, yaklaşık 25 dakika) linkin markasına karar vermeye yeter; 4041 ürünün tamamı aynı hızla yaklaşık 3 saat sürer. Kesilirse aynı komut kaldığı yerden devam eder. İsteğe bağlı `--proxy`, istekleri `.env`'deki `FETCH_PROXY_URL` üzerinden gönderir; varsayılan olarak kapalıdır. Ayrıntı: [DESIGN.md](DESIGN.md#ürünler).
 
 ## API
 
@@ -109,7 +109,7 @@ Görev gereği access token ömrü yaklaşık 4 yıldır (1460 gün). Sızan bir
 - **Marka oranları iyimserdir.** Marka listesi bu örnek veride görülen markalarla genişletildi; yeni veride isabet daha düşük olur.
 - **"Markanın kendi sitesi" bir varsayımdır.** Listede olmayan her site marka sayılır; elle kontrol edilen 60 alan adında doğruluk %77–90 çıktı.
 - **Alan adından türetilen ad kabadır.** Kelimeler ayrılamaz ve Türkçe karakterler geri gelmez (`sedayalcinatelier.com` → `Sedayalcinatelier`).
-- **Bot koruması aşılmaya çalışılmaz.** Trendyol son sayfada 403 döner (son URL yine de bilinir), 79 satır ise ilk istekte reddedildi.
+- **Bot koruması varsayılan olarak aşılmaya çalışılmaz** (`fetch_products --proxy` isteğe bağlıdır). Trendyol son sayfada 403 döner (son URL yine de bilinir), 79 satır ise ilk istekte reddedildi.
 - **Hız sınırı (429).** Aynı IP'den gelen istekleri sınırlayan sitelerde satır `blocked` kalabilir; sonra `resolve_links --retry-failed` ile yeniden denenir.
 - **JS yönlendirmeleri.** Tarayıcı çalıştırılmaz; yalnızca `meta refresh` ve basit `location = "..."` kalıpları yakalanır.
 - **Kalıcı hatalar.** Otomatik ikinci denemeden sonra kalan 18 `error` ölü link veya bozuk URL'dir.

@@ -123,6 +123,57 @@ class FindClientRedirectTests(SimpleTestCase):
         self.assertIsNone(find_client_redirect(noscript, self.BASE))
 
 
+class Http1FallbackTests(SimpleTestCase):
+    """A site that refuses HTTP/2 with 403 is asked once more over HTTP/1.1."""
+
+    async def _resolve(self, urls: list[str], http1_answer: httpx.Response) -> tuple[list, list]:
+        calls: list[tuple[str, str]] = []
+
+        def over(version: str):
+            def handler(request: httpx.Request) -> httpx.Response:
+                calls.append((str(request.url), version))
+                if request.url.host == "kisa.example":
+                    return httpx.Response(302, headers={"location": "https://www.trendyol.com/magaza/x-m-1"})
+                if version == "HTTP/2":
+                    return httpx.Response(403, extensions={"http_version": b"HTTP/2"})
+                return http1_answer
+
+            return httpx.MockTransport(handler)
+
+        async with (
+            httpx.AsyncClient(transport=over("HTTP/2")) as client,
+            httpx.AsyncClient(transport=over("HTTP/1.1")) as http1_client,
+        ):
+            resolver = LinkResolver(client, backoff=0, http1_client=http1_client)
+            results = [await resolver.resolve(url) for url in urls]
+        return results, calls
+
+    async def test_http1_answer_replaces_the_403_and_the_host_is_remembered(self):
+        store = "https://www.trendyol.com/magaza/x-m-1"
+        results, calls = await self._resolve(["https://kisa.example/a", store], html_page("<html>magaza</html>"))
+
+        self.assertEqual([result.status for result in results], ["ok", "ok"])
+        self.assertEqual(results[0].chain[-1], {"url": store, "status": 200, "http": "HTTP/1.1"})
+        self.assertNotIn("http", results[0].chain[0])  # the short link answered normally
+        # HTTP/2 is tried once for the host; the second link goes straight to HTTP/1.1.
+        self.assertEqual([version for url, version in calls if url == store], ["HTTP/2", "HTTP/1.1", "HTTP/1.1"])
+
+    async def test_403_on_both_stays_as_it_was(self):
+        results, calls = await self._resolve(["https://kisa.example/a"], httpx.Response(403))
+
+        self.assertEqual((results[0].status, results[0].status_code), ("resolved", 403))
+        self.assertNotIn("http", results[0].chain[-1])
+        self.assertEqual(len(calls), 3)  # short link, HTTP/2, one try over HTTP/1.1
+
+    async def test_without_an_http1_client_nothing_changes(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(403, extensions={"http_version": b"HTTP/2"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await LinkResolver(client, backoff=0).resolve("https://www.trendyol.com/")
+        self.assertEqual(result.status, "blocked")
+
+
 class FindSiteNameTests(SimpleTestCase):
     def test_reads_og_site_name_in_either_attribute_order(self):
         self.assertEqual(find_site_name('<meta property="og:site_name" content="ZARA">'), "ZARA")

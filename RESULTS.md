@@ -101,16 +101,22 @@ Shopier mağaza kuralı (`shopier.com/{mağaza}/{ürün}` linkinde mağaza adı 
 
 | Son URL | Satır | Yalnızca URL'den | Ürün sayfalarıyla |
 |---|---|---|---|
-| Trendyol | 2269 | 30 (%1,3) | 30 (%1,3) |
+| Trendyol | 2269 | 30 (%1,3) | 38 (%1,7) |
 | Hepsiburada | 712 | 285 (%40,0) | 293 (%41,2) |
 | Diğer siteler | 1019 | 375 (%36,8) | 389 (%38,2) |
-| **Toplam** | 4000 | 690 (%17,3) | 712 (%17,8) |
+| **Toplam** | 4000 | 690 (%17,3) | 720 (%18,0) |
 
-Trendyol'un 4041 ürünü okunamadığı için oradaki oran değişmedi.
+Trendyol satırı aşağıdaki 20 ürünlük denemeyi içerir; 4041 ürünün kalanı okunmadı.
 
 `fetch_products` kesintiye karşı da sınandı: Shopier'deki 22 ürünün okunması 9. saniyede kesildi (8 ürün kaydedilmişti), aynı komut kalan 14 ürünle devam etti, üçüncü çalıştırma yapacak iş bulmadı.
 
-**Trendyol henüz okunamadı.** 25 Kasım'daki çözümlemede Trendyol ürün sayfalarının 25'te 17'si 200 dönmüştü. 26 Kasım'da, iki günde üç tam taramanın ardından, Trendyol bu IP'den gelen her isteği (ana sayfa dahil) 403 ile reddetti; `fetch_products --platform trendyol` 5 istekten sonra durdu. Bu yüzden numaradan kurulan adresin (`/x/x-p-{id}`) çalışıp çalışmadığı da henüz sınanamadı. 4041 ürün saniyede bir istekle yaklaşık 70 dakikada taranır; komut engellenmemiş bir ağdan çalıştırılabilir.
+**Trendyol: 20 ürünlük deneme.** İlk denemelerde Trendyol her isteği (ana sayfa dahil) 403 ile reddetti. Neden IP sanıldı, ama Türkiye çıkışlı bir proxy üzerinden de aynı cevap geldi. Fark protokolde çıktı: Trendyol bu istemcinin HTTP/2 isteklerini reddediyor, HTTP/1.1 isteklerine cevap veriyor; proxy'siz, aynı IP'den de. HTTP/1.1 ile 20 ürünün 20'si okundu (29 saniye, saniyede bir istek); 19'unda marka JSON-LD'den geldi, birinde sayfada JSON-LD yoktu ve ad `<title>`'dan alındı. Numaradan kurulan adres (`/x/x-p-{id}`) tek yönlendirmeyle ürünün kendi sayfasına gidiyor.
+
+20 ürünün hepsi aynı satıcının 100 ürünlük listesindendi; 18'i Tchibo çıktı. Bu liste 8 içerikte paylaşıldığı için 8 satır marka kazandı: 712 → 720 (%17,8 → %18,0), Trendyol'da 30 → 38 (%1,3 → %1,7). Ürün numarası taşıyan 408 Trendyol satırı olduğu için tam taramanın getirebileceği en fazla artış bu kadardır (genel oranda en çok %28 dolayı).
+
+**Tam tarama denemesi yarıda kaldı.** Saniyede bir istekle başlatılan tarama 74 istekten sonra durdu: 65 ürün okundu, 9'u reddedildi. Düzen iki kez aynıydı: yaklaşık 35 başarılı istekten sonra art arda retler; ikinci seferde 5 ret üst üste gelince komut kendiliğinden durdu. Yani Trendyol hızı da sınırlıyor; saniyede bir istek fazla. Okunan 65 ürün yine aynı 100 ürünlük Tchibo listesindendi (tarama tablo sırasıyla ilerliyordu), bu yüzden marka oranı değişmedi: 720 satır (%18,0). Toplam 85 Trendyol ürünü okundu, 80'inde marka var.
+
+Bu denemeden sonra komut değişti: ret alınca 30 saniye bekler, ürünleri link link sırayla okur ve `--per-link` seçeneği vardır. `--per-link 3` ile okunması gereken ürün sayısı 3975'ten 479'a iner; her linkin markasına karar vermek için bu yeterlidir. Bu çalıştırma henüz yapılmadı.
 
 ## Marka tespiti ayrıntıları
 

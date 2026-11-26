@@ -50,6 +50,7 @@ Kural: `link_detail` yalnızca ilk isteğin kendisi başarısız olduğunda boş
 - **Domain başına limit ve retry:** bir domaine aynı anda en fazla 8 istek; 429/503'te `Retry-After` (en fazla 10 sn) veya üstel bekleme ile en fazla 2 yeniden deneme.
 - **GET, ama sayfa indirilmez:** cevap stream olarak açılır, başlıklar okunur, bağlantı kapatılır. Yalnızca 200 dönen HTML sayfaların ilk 64 KB'ına `meta refresh` ve basit JS yönlendirmesi için bakılır.
 - **İstemci tarafı yönlendirme (best effort):** 5 saniyeden kısa `meta refresh` her sayfada, JS yönlendirmesi yalnızca 10 KB'tan küçük ara sayfalarda izlenir. `<noscript>` içindekiler ve sayfanın kendisine dönen yönlendirmeler (çerez/bot kontrolü) izlenmez.
+- **HTTP/2, gerekirse HTTP/1.1:** istekler HTTP/2 ile gider; bir site HTTP/2 isteğine 403 dönerse aynı istek bir kez HTTP/1.1 ile denenir ve cevap alınırsa o site için HTTP/1.1'de kalınır (bkz. [Ürünler](#ürünler)). HTTP/1.1 ile alınan adım zincirde `"http": "HTTP/1.1"` ile işaretlenir.
 - **Tarayıcı başlıkları:** gerçekçi `User-Agent`, `Accept` ve `Accept-Language` gönderilir. Hepsiburada'nın kısa link domaini (`app.hb.biz`) `Accept-Language` olmayan isteklere 403 döner.
 - **Hata toleransı:** hiçbir link komutu durdurmaz; her hata bir `status` olur ve nedeni zincirin son adımına yazılır.
 - **Yazma:** sonuçlar 500'lük gruplar halinde `bulk_create` (upsert) ile yazılır; yarıda kesilen çalıştırma ilerlemesini kaybetmez.
@@ -137,7 +138,7 @@ Tek giriş noktası `detect_brand(url, site_name, product_brand)` fonksiyonudur.
 
 Bazı linkler ürün numarası taşır. Bunlar ayrı bir tabloda tutulur, çünkü bir link birden çok ürün taşıyabilir: bir Trendyol ürün listesinde 100'e kadar numara vardır.
 
-**LinkProducts** (`link_products`): `id`, `link_id`, `platform`, `product_id`, `source`, `product_name`, `brand`, `status`, `fetched_at`. `(link_id, platform, product_id)` üçlüsü tekildir.
+**LinkProducts** (`link_products`): `id`, `link_id`, `platform`, `product_id`, `source`, `product_name`, `brand`, `status`, `fetched_at`, `http_version`. `(link_id, platform, product_id)` üçlüsü tekildir.
 
 Numaranın bulunduğu yer (`source`):
 
@@ -155,11 +156,12 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 
 - **Linkler yeniden çözülmez.** Adres, kayıtlı son URL'den (takip parametreleri atılarak) alınır. Trendyol listelerinde yalnızca numara olduğu için adres numaradan kurulur (`/x/x-p-{id}`).
 - **Her ürün bir kez okunur**, sonuç o ürünü taşıyan tüm satırlara yazılır (4041 Trendyol ürünü 8525 satırda geçer).
-- **Ad ve marka sayfadaki JSON-LD'den** (`"@type": "Product"`) alınır. JSON-LD yoksa ad `og:title`'dan, o da yoksa `<title>`'dan gelir; bu durumda marka boş kalır.
-- **Yavaştır, bilerek:** site başına sırayla, istekler arasında 1 saniye (`--delay`). Bir site art arda 5 kez reddederse o site için durur; kalan ürünler `pending` kalır.
+- **Ad ve marka sayfadaki JSON-LD'den** (`"@type": "Product"`) alınır. JSON-LD yoksa ad `og:title`'dan, o da yoksa `<title>`'dan gelir; bu durumda marka boş kalır. `<title>`'dan gelen adın sonundaki mağaza ekleri (`- Fiyatı`, `Fiyatı, Yorumları`, `| Trendyol`) atılır.
+- **Yavaştır, bilerek:** site başına sırayla, istekler arasında 1 saniye (`--delay`). Site bir isteği reddederse sıradaki istekten önce 30 saniye beklenir (`--cooldown`); art arda 5 kez reddederse o site için durur ve kalan ürünler `pending` kalır.
+- **Sıra link link ilerler:** önce her linkin ilk ürünü, sonra her linkin ikinci ürünü okunur. Bir ürün listesi 100'e kadar ürün taşır, ama linkin markasına birkaç ürün karar verir; böylece yarıda kalan bir çalıştırma da her linke dokunmuş olur. `--per-link N` her linkten en çok N ürün okur: `--per-link 3`, Trendyol'da 4041 yerine 479 ürünle her link için alt sınırı karşılar.
 - **Kesilirse kaldığı yerden devam eder.** Her ürün okunur okunmaz kaydedilir ve komut varsayılan olarak yalnızca `pending` ürünleri işler; Ctrl+C'den sonra aynı komut kalan ürünlerle sürer. Site reddettiği için duran bir çalıştırmada reddedilen ürünler `blocked` olur; onlar `--retry-failed` ile yeniden denenir.
 - **Varsayılan platformlar Hepsiburada ve Shopier'dir.** Trendyol `--platform trendyol` ile istenir. Amazon kapsam dışıdır: düz isteğe ürün yerine bot kontrol sayfası döner.
-- **Seçenekler:** `--platform`, `--delay`, `--limit N`, `--retry-failed` (önceki `blocked` ve `error` sonuçlarını da dener), `--force`, `--timeout`.
+- **Seçenekler:** `--platform`, `--delay`, `--cooldown`, `--per-link N`, `--limit N`, `--retry-failed` (önceki `blocked` ve `error` sonuçlarını da dener), `--force`, `--timeout`, `--proxy`.
 
 | `status` | Anlamı |
 |---|---|
@@ -171,7 +173,11 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 
 **Ürün markası linkin markası olur.** Öncelik sırası: sayfanın söylediği marka (`link_products.brand`), ürün adı, URL kuralları. Sayfa marka söylemiyorsa (Shopier) okunan `product_name`'in ilk 1-3 kelimesi marka listesindeyse o marka sayılır; Hepsiburada slug'ında kullanılan kuralın aynısıdır. `^` ile işaretli gündelik kelime markaları (Mavi, Eti) ürün adından okunmaz: bir mağazanın "Mavi Triko Kazak"ı mavi bir kazaktır; bu markalar yalnızca pazaryeri URL'sinde, konumlarından tanınır. Ürün adından bulunan marka tabloya yazılmaz, `detect_brands` sırasında hesaplanır; böylece marka listesi değişince sayfaları yeniden okumak gerekmez. `detect_brands` (ve `resolve_links`) bu sonucu en öncelikli kaynak olarak kullanır. Bir link birden çok ürün taşıyorsa çoğunluk kuralı geçerlidir: sayfası okunan ürünlerin en az yarısı aynı markaysa linkin markası odur; daha karışıksa `brand_exist` `false` olur. Sayfası henüz okunmamış ürünler çoğunluk hesabına katılmaz. Alt sınır: bir linkin ürünlerinin en az 3'ü (ya da %20'si, hangisi küçükse) okunmadıysa ürün markası hiç kullanılmaz ve URL kuralları geçerli kalır; 100 ürünlük bir listeden okunan iki sayfa link adına konuşamaz. Hiçbir ürününde marka okunmamış linklerde de URL kuralları geçerlidir.
 
-**Trendyol.** Trendyol IP bazlı engel uygular: aynı IP'den birkaç tam taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz (proxy, tarayıcı taklidi yok); engellenmemiş başka bir ağdan çalıştırılabilir. Sonuçlar ve denemelerin durumu: [RESULTS.md](RESULTS.md#ürün-bilgisi).
+**HTTP sürümü otomatik seçilir.** Trendyol bu istemcinin HTTP/2 isteklerini 403 ile reddeder (ana sayfa dahil, Türkiye çıkışlı taze bir IP'den de), aynı başlıklarla HTTP/1.1 isteğine 200 döner; Hepsiburada tam tersini yapar. Bu yüzden kural siteye değil cevaba bağlıdır: HTTP/2 isteğine 403 gelirse aynı istek bir kez HTTP/1.1 ile denenir; HTTP/1.1 cevap alırsa o site için çalıştırmanın sonuna kadar HTTP/1.1'de kalınır, böylece her istekte boşa bir HTTP/2 denemesi yapılmaz. HTTP/1.1 de 403 dönerse ilk cevap geçerlidir. Aynı kural `resolve_links` için de geçerlidir. Hangi sürümün cevap verdiği kaydedilir: ürünlerde `http_version` alanına, link zincirinde HTTP/1.1 ile alınan adımın `http` anahtarına. Gözlem 26 Kasım 2026 tarihlidir ve değişebilir.
+
+**Proxy (isteğe bağlı).** `--proxy` verilirse istekler `.env`'deki `FETCH_PROXY_URL` adresinden (`http://kullanıcı:şifre@host:port`) geçer. Varsayılan olarak kapalıdır ve yalnızca bu komutta vardır; adres hiçbir çıktıya yazılmaz. Trendyol için gerekmediği görüldü: proxy ile de HTTP/2 reddedildi, proxy'siz HTTP/1.1 çalıştı. Sonuçlar: [RESULTS.md](RESULTS.md#ürün-bilgisi).
+
+**`probe_store_pages`** bir teşhis komutudur: en çok link alan 10 Trendyol mağaza sayfasını (2 saniyede bir) okur ve sayfanın ne verdiğini (başlık, mağaza adı, ürün linklerindeki markalar) yazdırır; hiçbir şey kaydetmez.
 
 API: `GET /api/link-products/?page=N` (isteğe bağlı `&platform=...`), `link-details` ile aynı sayfalama alanlarıyla; satır başına ek sorgu yoktur.
 
@@ -235,6 +241,7 @@ Production'da kısa ömürlü access token ile refresh token tercih edilir. Bunu
 | `DJANGO_SUPERUSER_PASSWORD` | yok | Bu kullanıcının şifresi; boşsa kullanıcı oluşturulmaz |
 | `DJANGO_SUPERUSER_EMAIL` | boş | |
 | `WEB_PORT` | `8000` | Docker'da API'nin açılacağı port |
+| `FETCH_PROXY_URL` | boş | Yalnızca `fetch_products --proxy` kullanır; gizli değerdir |
 
 ## Ölçeklenme notu
 

@@ -79,8 +79,11 @@ class Command(BaseCommand):
         latest: dict[str, ResolveResult] = {}
         slots = asyncio.Semaphore(concurrency)
 
-        async with build_client(timeout=timeout, max_connections=concurrency * 2) as client:
-            resolver = LinkResolver(client, per_host=per_host)
+        async with (
+            build_client(timeout=timeout, max_connections=concurrency * 2) as client,
+            build_client(timeout=timeout, max_connections=concurrency * 2, http2=False) as http1_client,
+        ):
+            resolver = LinkResolver(client, per_host=per_host, http1_client=http1_client)
 
             async def resolve(url: str) -> ResolveResult:
                 async with slots:
@@ -102,6 +105,8 @@ class Command(BaseCommand):
             if failed:
                 self.stdout.write(f"Retrying {len(failed)} failed urls once...")
                 await resolve_and_save(failed)
+        if resolver.http1_hosts:
+            self.stdout.write(f"HTTP/2 was refused, HTTP/1.1 used for: {', '.join(sorted(resolver.http1_hosts))}")
         return Counter(result.status for result in latest.values())
 
     def _save(self, results: dict[str, ResolveResult], ids_by_url: dict[str, list[int]]) -> None:

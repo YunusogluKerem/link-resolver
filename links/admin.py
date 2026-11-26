@@ -25,7 +25,7 @@ class LinkDetailsAdmin(admin.ModelAdmin):
 @admin.register(LinkProducts)
 class LinkProductsAdmin(admin.ModelAdmin):
     list_display = ["id", "content_id", "platform", "product_id", "source", "status", "product_name", "brand", "fetched_at"]
-    list_filter = ["platform", "source", "status"]
+    list_filter = ["platform", "source", "status", "http_version"]
     search_fields = ["product_id", "product_name", "brand", "link__content_id"]
     list_select_related = ["link"]
     raw_id_fields = ["link"]
