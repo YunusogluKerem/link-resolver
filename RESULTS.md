@@ -118,6 +118,32 @@ Trendyol satırı aşağıdaki 20 ürünlük denemeyi içerir; 4041 ürünün ka
 
 Bu denemeden sonra komut değişti: ret alınca 30 saniye bekler, ürünleri link link sırayla okur ve `--per-link` seçeneği vardır. `--per-link 3` ile okunması gereken ürün sayısı 3975'ten 479'a iner; her linkin markasına karar vermek için bu yeterlidir. Bu çalıştırma henüz yapılmadı.
 
+## Mağaza sayfaları
+
+26 Kasım 2026. Linklerde 598 farklı Trendyol satıcısı vardır ve 2153 satır onlara gider. `fetch_stores` 598 mağaza sayfasının 598'ini okudu: 2,5 saniye arayla, HTTP/1.1 üzerinden, 34 dakikada, hiç ret almadan.
+
+| Son URL | Satır | Önce | Sonra |
+|---|---|---|---|
+| Trendyol | 2269 | 38 (%1,7) | 1997 (%88) |
+| Hepsiburada | 712 | 293 (%41,2) | 293 (%41,2) |
+| Diğer siteler | 1019 | 389 (%38,2) | 392 (%38,5) |
+| **Toplam** | 4000 | 720 (%18,0) | 2682 (%67,1) |
+
+Daha önce marka bulunan hiçbir satırın markası değişmedi; mağaza markası yalnızca boş olanları doldurur. "Diğer siteler"deki 3 satır, son URL'si Trendyol olmayan ama zincirinde satıcı numarası taşıyan linklerdir.
+
+Mağazaların hangi kuralla marka sayıldığı:
+
+| Kural | Mağaza | Link satırı |
+|---|---|---|
+| Ad marka listesinde (`listed`) | 65 | 834 |
+| Ürünleri tek marka, mağaza o adı taşıyor (`products`) | 383 | 985 |
+| Yalnızca onaylı satıcı işareti (`verified`) | 68 | 169 |
+| Marka sayılmadı | 82 | 165 |
+
+598 mağazanın 395'i onaylı satıcıdır. Marka sayılmayan 82 mağazanın hiçbiri onaylı değildir; 67'sinde ürünlerin çoğu tek markadır ama mağazanın adı o markadan farklıdır. Bunların 18'i (38 satır) yalnızca yazım farkıdır (`StopForte` / `STOP Forte`, `FRESH SCARFS` / `Freshscarfs`); kural bunları şimdilik saymaz.
+
+Bu sonuçlar henüz elle doğrulanmadı. En zayıf grup yalnızca işarete dayanan 68 mağazadır: örneklerde bir markanın kendi mağazası (`ARMANI BEAUTY`) olduğu kadar, birkaç markayı satan onaylı satıcılar (`boomglobal`, `Çiçekburada`) da vardır.
+
 ## Marka tespiti ayrıntıları
 
 Kuralların kendisi [DESIGN.md](DESIGN.md#marka-tespiti) dosyasındadır.
@@ -131,9 +157,10 @@ Kuralların kendisi [DESIGN.md](DESIGN.md#marka-tespiti) dosyasındadır.
 
 ## Sınırlamaların ayrıntısı
 
-- **Trendyol'da marka adı çoğunlukla URL'de yok, yalnızca ID var.** Trendyol kısa linklerinin yaklaşık %96'sı ürün sayfasına değil, satıcı mağazasına (`/magaza/x-m-123456`) veya ID'lerle tanımlı bir aramaya (`/sr?mid=...`) gider. URL'de ve zincirdeki `adj.st` parametrelerinde sayısal ID'ler bulunur. ID'den isme gitmek için Trendyol sayfasını okumak gerekir; o sayfa da 403 döner. Bir eşleme tablosuyla neyin kazanılacağı ID'nin türüne bağlıdır:
-  - **Marka ID'si (`BrandIds`)** 2266 Trendyol satırının yalnızca 75'inde doludur (%3,3; 30 farklı değer). Bu değerler `marketplace_brand_id` alanında saklanır. Marka ID→isim tablosu Trendyol'daki oranı %1,3'ten en fazla %4,6'ya, genel oranı %17,3'ten %19,1'e çıkarır.
-  - **Satıcı ID'si (`MerchantId`)** satırların yaklaşık %96'sında vardır ve `redirect_chain` içinde durur. Asıl büyük artış satıcı ID→satıcı adı tablosundan gelir; ancak satıcı her zaman marka değildir (resmi marka mağazaları marka sayılır, çok markalı satıcılar sayılmaz).
+- **Trendyol'da marka adı URL'de yok, yalnızca ID var.** Trendyol kısa linklerinin yaklaşık %96'sı ürün sayfasına değil, satıcı mağazasına (`/magaza/x-m-123456`) veya ID'lerle tanımlı bir aramaya (`/sr?mid=...`) gider. İlk çözümde bu sayfalar okunamadı (HTTP/2 isteklerine 403) ve oran %1,3'te kaldı. Sayfaların HTTP/1.1 ile okunabildiği görülünce satıcı adı mağaza sayfasından alındı (bkz. "Mağaza sayfaları"); oran %88'e çıktı. Kalan sınırlar:
+  - **Bulunan marka mağazanın markasıdır.** İçerikte gösterilen ürünün markası değil, linkin gittiği satıcının markası yazılır; çok markalı bir satıcıda bu ikisi farklı olabilir.
+  - **Onaylı satıcı işareti "resmi marka mağazası" demek değildir.** Rozet yetkili satıcılara da verilir; yalnızca işarete dayanan 68 mağazada (169 satır) mağazanın adı marka olarak yazılır.
+  - **Marka ID'si (`BrandIds`)** 2266 Trendyol satırının 75'inde doludur ve `marketplace_brand_id` alanında saklanır; bir ID→isim tablosu olmadığı için kullanılmaz.
 - **Marka oranları iyimserdir.** Marka listesi (`links/brands.txt`) bu örnek veride görülen markalarla genişletildi. Daha önce görülmemiş linklerde isabet oranı daha düşük olacaktır; liste elle bakım ister.
 - **"Markanın kendi sitesi" bir varsayımdır.** Listede olmayan her site marka sayılır; yani kural hariç tutulanlar listesi kadar doğrudur. Liste örnek verideki alan adlarından ve bilinen sitelerden derlendi; siteler tek tek ziyaret edilmedi, adlarına bakılarak sınıflandırıldı. Yeni veride listede olmayan bir haber sitesi veya platform yanlışlıkla marka sayılır. Listede olmayan kişisel siteler (bir doktorun, bir eğitmenin, bir sanatçının sitesi) de marka sayılır. Çok markalı perakendeciler ve mağaza zincirleri (Sephora, Gratis, Watsons) sayılmaz. Elle kontrol edilen 60 alan adlık örnekte doğruluk %77–90 çıktı (bkz. yukarıda "Elle kontrol"); ölçüm yalnızca ada bakılarak yapıldı ve kontrol edilmeyen 93 alan adını kapsamaz. Bu yüzden %17,3 bir üst sınır gibi okunmalıdır.
 - **Alan adından türetilen ad kabadır.** Kelimeler ayrılamaz ve Türkçe karakterler geri gelmez: `sedayalcinatelier.com` → `Sedayalcinatelier`. `og:site_name` bunu düzeltir, ama örnek verideki sitelerde nadiren vardır: denenen 14 gerçek sayfanın 3'ünde bulundu, yalnızca 1'i kullanılabilirdi (biri slogan, biri alan adının kendisiydi). Sayfa HTML'i saklanmadığı için mevcut kayıtlarda `site_name` yoktur; bu kayıtlarda ad alan adından gelir. `site_name` bir sonraki `resolve_links` çalıştırmasında dolar.

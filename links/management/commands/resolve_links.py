@@ -10,6 +10,7 @@ from django.utils import timezone
 from links.brands import detect_brand, marketplace_brand_id, page_site_name
 from links.models import LinkDetails, Links
 from links.products import product_brands
+from links.stores import seller_id, store_brands
 from links.resolver import LinkResolver, ResolveResult, build_client
 
 # Results are written every CHUNK_SIZE urls, so an interrupted run keeps its progress.
@@ -112,14 +113,16 @@ class Command(BaseCommand):
     def _save(self, results: dict[str, ResolveResult], ids_by_url: dict[str, list[int]]) -> None:
         """Upsert one LinkDetails row for every link that shares each resolved url."""
         now = timezone.now()
-        from_product_page = product_brands()  # brands already read by fetch_products stay in force
+        # What fetch_products and fetch_stores already read stays in force.
+        from_product_page = product_brands()
+        from_store_page = store_brands()
         details = []
         for url, result in results.items():
+            # Look for the brand in the final URL; fall back to the raw link if unresolved.
+            final_url = result.final_url or url
+            store = from_store_page.get(seller_id(final_url, result.chain))
             for link_id in ids_by_url[url]:
-                # Look for the brand in the final URL; fall back to the raw link if unresolved.
-                brand = detect_brand(
-                    result.final_url or url, page_site_name(result.chain), from_product_page.get(link_id)
-                )
+                brand = detect_brand(final_url, page_site_name(result.chain), from_product_page.get(link_id), store)
                 details.append(
                     LinkDetails(
                         link_id=link_id,

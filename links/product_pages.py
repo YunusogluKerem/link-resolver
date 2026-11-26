@@ -63,15 +63,14 @@ async def fetch_product(client: httpx.AsyncClient, url: str, product_id: str) ->
                 return ProductPage(Status.NOT_FOUND, http_version=version)
             if response.status_code != 200:
                 return ProductPage(Status.ERROR, http_version=version)
-            page = await read_start(response)
+            page = await _read_start(response)
     except httpx.HTTPError:
         return ProductPage(Status.ERROR)
     name, brand = parse_product(page)
     return ProductPage(Status.OK if name else Status.ERROR, name, brand, version)
 
 
-async def read_start(response: httpx.Response) -> str:
-    """The first MAX_PAGE_BYTES of a page, as text."""
+async def _read_start(response: httpx.Response) -> str:
     data = b""
     async for chunk in response.aiter_bytes():
         data += chunk

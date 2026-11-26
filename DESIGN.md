@@ -124,7 +124,7 @@ Kurallar (`links/brands.py`):
    - Hepsiburada `/{slug}-p-{sku}`: slug'ın ilk 1-3 kelimesi marka listesindeyse markadır, değilse marka yok sayılır.
 2. **Pazaryeri mağaza, kampanya ve arama sayfaları:** adın başı marka listesindeyse sayılır (`/magaza/estee-lauder`, `/ara?q=mavi+boxer`). Mağaza adı tek başına marka değildir; `/magaza/og-store` marka sayılmaz.
 3. **Diğer tüm URL'ler:** listedeki bir marka path'te, arama veya kampanya parametresinde ya da sitenin kendi alan adında tam kelime olarak geçiyorsa sayılır (`mac`, `macbook` ile eşleşmez).
-4. **Markanın kendi sitesi:** yukarıdakiler sonuç vermediyse ve site "marka olmayan alan adları" listesinde değilse, site markanın kendi sitesi kabul edilir ve sitenin adı marka sayılır (`www.akcabutik.com` → `Akcabutik`, `de.checkout.gymshark.com` → `Gymshark`). Ad, sayfada varsa `og:site_name` etiketinden, yoksa alan adından gelir. Shopier'deki bir mağaza da aynı sayılır: Shopier ortak bir alan adında küçük markaların kendi dükkânlarını barındırır, bu yüzden `shopier.com/{mağaza}/{ürün}` linkinde mağaza adı marka olur (`shopier.com/emekatolye/45116827` → `Emekatolye`). Bir mağazayı dışarıda bırakmak için `non_brand_domains.txt` dosyasına `shopier.com/{mağaza}` satırı eklenir.
+4. **Markanın kendi sitesi:** yukarıdakiler sonuç vermediyse ve site "marka olmayan alan adları" listesinde değilse, site markanın kendi sitesi kabul edilir ve sitenin adı marka sayılır (`www.akcabutik.com` → `Akcabutik`, `de.checkout.gymshark.com` → `Gymshark`). Ad, sayfada varsa `og:site_name` etiketinden, yoksa alan adından gelir. Shopier'deki bir mağaza da aynı sayılır: Shopier ortak bir alan adında küçük markaların kendi dükkânlarını barındırır, bu yüzden `shopier.com/{mağaza}/{ürün}` linkinde mağaza adı marka olur (`shopier.com/emekatolye/45116827` → `Emekatolye`). Bir mağazayı dışarıda bırakmak için `non_brand_domains.txt` dosyasına `shopier.com/{mağaza}` satırı eklenir. Trendyol'da bir satıcı mağazası markanın kendi mağazasıysa mağazanın markası da sayılır; bu, URL'nin kendisi bir marka söylemediğinde başvurulan son kaynaktır (bkz. [Mağazalar](#mağazalar)).
 
 **Marka olmayan alan adları da ayrı bir dosyadadır: `links/non_brand_domains.txt`** (pazaryeri, çok markalı perakendeci, sosyal medya, haber, link kısaltıcı ve benzeri bölümler). Dosyaya satır eklemek kod değişikliği gerektirmez. Bölümlerin, satır biçiminin ve marka adının nereden geldiğinin ayrıntısı: [RESULTS.md](RESULTS.md#marka-tespiti-ayrıntıları).
 
@@ -132,7 +132,7 @@ Aynı zamanda gündelik kelime olan markalar (Mavi, Eti, Yumoş) listede `^` ile
 
 Çözülemeyen linklerde (`link_detail` boş) marka ham linkte aranır.
 
-Tek giriş noktası `detect_brand(url, site_name, product_brand)` fonksiyonudur. İleride AI tabanlı bir yöntem aynı imzayla bu fonksiyonun yerine konabilir; çözümleyiciye ve API'ye dokunmak gerekmez, `detect_brands` komutu mevcut kayıtları yeniden işaretler.
+Tek giriş noktası `detect_brand(url, site_name, product_brand, store_brand)` fonksiyonudur. İleride AI tabanlı bir yöntem aynı imzayla bu fonksiyonun yerine konabilir; çözümleyiciye ve API'ye dokunmak gerekmez, `detect_brands` komutu mevcut kayıtları yeniden işaretler.
 
 ## Ürünler
 
@@ -177,9 +177,32 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 
 **Proxy (isteğe bağlı).** `--proxy` verilirse istekler `.env`'deki `FETCH_PROXY_URL` adresinden (`http://kullanıcı:şifre@host:port`) geçer. Varsayılan olarak kapalıdır ve yalnızca bu komutta vardır; adres hiçbir çıktıya yazılmaz. Trendyol için gerekmediği görüldü: proxy ile de HTTP/2 reddedildi, proxy'siz HTTP/1.1 çalıştı. Sonuçlar: [RESULTS.md](RESULTS.md#ürün-bilgisi).
 
-**`probe_store_pages`** bir teşhis komutudur: en çok link alan 10 Trendyol mağaza sayfasını (2 saniyede bir) okur ve sayfanın ne verdiğini (başlık, mağaza adı, ürün linklerindeki markalar) yazdırır; hiçbir şey kaydetmez.
-
 API: `GET /api/link-products/?page=N` (isteğe bağlı `&platform=...`), `link-details` ile aynı sayfalama alanlarıyla; satır başına ek sorgu yoktur.
+
+## Mağazalar
+
+Trendyol linklerinin çoğu bir ürüne değil, bir satıcının mağazasına (`/magaza/x-m-982060`) ya da o satıcının bir ürün listesine (`/sr?mid=982060&...`) gider. URL'de yalnızca satıcı numarası vardır; satıcının kim olduğunu mağaza sayfası söyler.
+
+**Stores** (`stores`): `id`, `platform`, `seller_id`, `link_count`, `name`, `verified`, `product_brands`, `status`, `fetched_at`, `http_version`. `(platform, seller_id)` tekildir. Linklerle arasında yabancı anahtar yoktur: bir linkin satıcısı URL'sinden hesaplanır (`stores.seller_id`), en yoğun mağazaya 344 link gider.
+
+**`fetch_stores`** önce ağa çıkmadan linklerdeki satıcıları tabloya yazar (kaç linkin gittiğiyle birlikte), sonra her mağazanın sayfasını bir kez okur:
+
+- **En çok link alan mağazadan başlar**; yarıda kalan bir çalıştırma en çok satırı kapsamış olur.
+- **Sayfadan üç şey alınır:** satıcının adı ve onaylı satıcı işareti (sayfadaki satıcı veri bloğundan), bir de sayfada gösterilen ürünlerin markaları. Sayfalar 0,7–2,8 MB'tır; 20 ürün görülünce okuma kesilir.
+- **Hız ve dayanıklılık `fetch_products` ile aynıdır:** istekler arasında 2,5 saniye (`--delay`), ret gelince 30 saniye (`--cooldown`), art arda 5 rette durur, her mağaza okunur okunmaz kaydedilir ve komut kaldığı yerden devam eder. HTTP sürümü aynı kuralla seçilir.
+- **Seçenekler:** `--delay`, `--cooldown`, `--limit N`, `--retry-failed`, `--force`, `--timeout`.
+
+**Mağaza ne zaman marka sayılır** (`stores.store_brand`). Mağaza adı tek başına marka değildir; "OG Store" başkalarının ürününü satar. Şu üç durumdan biri varsa sayılır, sırayla bakılır:
+
+| Kural | Koşul | Marka adı |
+|---|---|---|
+| `listed` | Mağaza adı marka listesindeki bir markayla başlar (`Koton`) | Listedeki yazım |
+| `products` | Sayfadaki ürünlerin en az yarısı tek markadır ve mağaza o markanın adıyla başlar (`VICTORIA'S SECRET` → Victoria's Secret) | Ürünlerdeki yazım |
+| `verified` | Trendyol satıcıyı onaylı olarak işaretlemiştir ("Onaylanmış Satıcı" rozeti) | Mağazanın adı |
+
+Karar tabloya yazılmaz, `detect_brands` sırasında hesaplanır; kural ya da marka listesi değişince sayfaları yeniden okumak gerekmez. Mağaza markası son kaynaktır: ürün sayfasının söylediği marka ve URL'nin adını verdiği marka önce gelir.
+
+`verified` en zayıf kuraldır: rozet markanın kendisine olduğu kadar yetkili satıcılarına da verilir, bu durumda bir distribütörün adı marka olarak yazılır. Sonuçlar ve elle kontrol: [RESULTS.md](RESULTS.md#mağaza-sayfaları).
 
 ## API ayrıntıları
 

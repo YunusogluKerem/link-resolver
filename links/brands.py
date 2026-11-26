@@ -17,11 +17,13 @@ Rules, most reliable first:
      site's name (og:site_name when the page was read, else the domain name).
      A shop on Shopier is the same thing on a shared domain, so its product
      links (shopier.com/{shop}/{product}) count the shop's name as the brand.
+     A marketplace store that turned out to be a brand's own store counts too
+     (`fetch_stores` reads the store page; `stores.store_brand` decides).
 
 The brand list lives in brands.txt and the non-brand domains in
 non_brand_domains.txt. The only entry point is
-`detect_brand(url, site_name, product_brand)`, so an AI-based detector can
-replace it later without touching the resolver or API.
+`detect_brand(url, site_name, product_brand, store_brand)`, so an AI-based
+detector can replace it later without touching the resolver or API.
 """
 
 import re
@@ -52,7 +54,9 @@ _HEPSIBURADA_PRODUCT = re.compile(r"^(.+)-pm?-[A-Za-z0-9]+$")
 _LOOKS_LIKE_DOMAIN = re.compile(r"[\w-]+(\.[\w-]+)+")
 
 
-def detect_brand(url: str, site_name: str = "", product_brand: str | None = None) -> str | None:
+def detect_brand(
+    url: str, site_name: str = "", product_brand: str | None = None, store_brand: str | None = None
+) -> str | None:
     """Return the brand the link points at, or None.
 
     `site_name` is the final page's og:site_name when the resolver could read
@@ -60,6 +64,9 @@ def detect_brand(url: str, site_name: str = "", product_brand: str | None = None
     `product_brand` is what the link's product pages say (see
     `products.product_brands`): a brand name, "" when the products are too
     mixed to name one brand, or None when the pages say nothing about a brand.
+    `store_brand` is the brand of the marketplace store the link points at,
+    when the store is a brand's own (see `stores.store_brands`). It is the
+    last resort: anything the URL itself names comes first.
     """
     # 0. The product pages say what the brand is: nothing in the URL beats that.
     if product_brand is not None:
@@ -108,7 +115,8 @@ def detect_brand(url: str, site_name: str = "", product_brand: str | None = None
     #    A Shopier shop is one small brand's own storefront, not a marketplace of sellers.
     if "shopier" in host_labels:
         return _shopier_shop_brand(segments)
-    return None
+    #    A marketplace store that is the brand's own store.
+    return store_brand or None
 
 
 def brand_in_product_name(name: str) -> str | None:
@@ -119,6 +127,20 @@ def brand_in_product_name(name: str) -> str | None:
     marketplace URL, where the position says it is a brand.
     """
     return _brand_at_start(_tokens(name), everyday_words=False)
+
+
+def brand_in_store_name(name: str) -> str | None:
+    """A listed brand at the start of a marketplace store's name: "Koton" -> "Koton".
+
+    Everyday-word brands count here: a store called "Mavi" is the brand.
+    """
+    return _brand_at_start(_tokens(name))
+
+
+def name_starts_with(name: str, brand: str) -> bool:
+    """"YVES SAINT LAURENT BEAUTY" starts with "Yves Saint Laurent": case, accents and punctuation are ignored."""
+    words, brand_words = _tokens(name), _tokens(brand)
+    return bool(brand_words) and words[: len(brand_words)] == brand_words
 
 
 def listed_spelling(name: str) -> str:

@@ -8,7 +8,7 @@ Stack: Python 3.12, Django 5.2 (LTS), Django REST Framework, simplejwt, httpx (a
 
 - **Veri:** 4000 satır, 3305 benzersiz URL; tamamı yaklaşık 3,5 dakikada çözülür.
 - **Son URL:** satırların %98'inde bulunur (3907 / 4000).
-- **Marka:** yalnızca URL'den satırların %17,3'ünde, okunan ürün sayfalarıyla %18,0'ında tespit edilir. Hepsiburada'da %41, Trendyol'da %1,7; nedeni [Bilinen sınırlamalar](#bilinen-sınırlamalar) bölümündedir.
+- **Marka:** satırların %67'sinde tespit edilir (2682 / 4000): Trendyol'da %88, Hepsiburada'da %41. Yalnızca URL'den %17,3 idi; artış Trendyol mağaza sayfalarının okunmasından gelir ([RESULTS.md](RESULTS.md#mağaza-sayfaları)).
 - **Kurulum:** `.env` ve Excel yerine konduktan sonra tek komut: `docker compose up -d`.
 - **API:** yalnızca admin kullanıcıya açık, JWT ile; sayfa başına 1000 kayıt.
 
@@ -45,13 +45,14 @@ Konteyner her açılışta migration'ları uygular ve `.env` içindeki admin kul
 | `import_links <dosya.xlsx>` | Excel'deki linkleri `Links` tablosuna alır. Tekrar çalıştırılabilir; kayıt çoğaltmaz. |
 | `resolve_links` | Linkleri çözer, sonuçları `LinkDetails` tablosuna yazar. |
 | `detect_brands` | Marka alanlarını ağa çıkmadan yeniden hesaplar (bkz. [DESIGN.md](DESIGN.md#marka-tespiti)). |
+| `fetch_stores` | Linklerin gittiği Trendyol satıcılarının mağaza sayfasını okur: ad, onaylı satıcı işareti, ürün markaları. |
 | `extract_products` | Linklerdeki ürün numaralarını `link_products` tablosuna çıkarır; ağa çıkmaz. |
 | `fetch_products` | Ürün sayfalarından ürün adını ve markasını okur (Hepsiburada, Shopier; `--platform trendyol` ile Trendyol). |
 | `ensure_admin` | Ortam değişkenlerinden admin kullanıcıyı yoksa oluşturur. |
 
 `resolve_links` tekrar çalıştırılabilir: yalnızca henüz çözülmemiş linkleri işler, `--force` ile hepsini baştan çözer. Tüm seçenekler: [DESIGN.md](DESIGN.md#resolve_links-seçenekleri).
 
-Ürün bilgisi için sıra: `extract_products`, `fetch_products`, sonra `detect_brands` (ürün sayfasının söylediği marka, yoksa ürün adının başındaki marka linkin markası olur). `fetch_products` linkleri yeniden çözmez, site başına saniyede bir istek atar ve art arda 5 kez reddedilirse o siteyi bırakır.
+Marka için ek adımlar, `resolve_links`'ten sonra: `fetch_stores` (598 mağaza, yaklaşık 35 dakika), `extract_products`, `fetch_products`, en sonda `detect_brands`. Markanın kendi mağazası olan satıcının adı, ürün sayfasının söylediği marka ve ürün adının başındaki marka linkin markası olur. Okuma komutları linkleri yeniden çözmez, yavaş çalışır (mağazalarda 2,5 saniyede, ürünlerde saniyede bir istek), ret gelince bekler, art arda 5 rette o siteyi bırakır ve kesilirse kaldığı yerden devam eder.
 
 **Trendyol notu:** Trendyol bu istemcinin HTTP/2 isteklerini 403 ile reddeder, aynı isteğe HTTP/1.1 üzerinden cevap verir; komutlar HTTP/2'ye 403 gelince aynı isteği bir kez HTTP/1.1 ile dener. Trendyol ürünleri `--platform trendyol` ile istenir. Trendyol hızı da sınırlar: saniyede bir istekle yaklaşık 35 istekten sonra reddetmeye başladı. Önerilen çalıştırma `fetch_products --platform trendyol --per-link 3 --delay 2.5 --retry-failed`: her linkten 3 ürün (479 ürün, yaklaşık 25 dakika) linkin markasına karar vermeye yeter; 4041 ürünün tamamı aynı hızla yaklaşık 3 saat sürer. Kesilirse aynı komut kaldığı yerden devam eder. İsteğe bağlı `--proxy`, istekleri `.env`'deki `FETCH_PROXY_URL` üzerinden gönderir; varsayılan olarak kapalıdır. Ayrıntı: [DESIGN.md](DESIGN.md#ürünler).
 
@@ -105,7 +106,7 @@ Görev gereği access token ömrü yaklaşık 4 yıldır (1460 gün). Sızan bir
 
 ## Bilinen sınırlamalar
 
-- **Trendyol'da marka çoğunlukla bulunamaz.** Kısa linklerin yaklaşık %96'sı marka adı içermeyen satıcı mağazasına veya ID'li bir aramaya gittiği için oran %1,3'tür.
+- **Trendyol'da marka mağazadan gelir.** Linklerin çoğu ürüne değil satıcı mağazasına gider; bulunan marka mağazanın markasıdır, içerikte gösterilen ürünün değil. Yalnızca onaylı satıcı işaretine dayanan 68 mağaza (169 satır) en zayıf halkadır.
 - **Marka oranları iyimserdir.** Marka listesi bu örnek veride görülen markalarla genişletildi; yeni veride isabet daha düşük olur.
 - **"Markanın kendi sitesi" bir varsayımdır.** Listede olmayan her site marka sayılır; elle kontrol edilen 60 alan adında doğruluk %77–90 çıktı.
 - **Alan adından türetilen ad kabadır.** Kelimeler ayrılamaz ve Türkçe karakterler geri gelmez (`sedayalcinatelier.com` → `Sedayalcinatelier`).

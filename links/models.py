@@ -127,3 +127,38 @@ class LinkProducts(models.Model):
 
     def __str__(self) -> str:
         return f"{self.link_id}: {self.platform} {self.product_id}"
+
+
+class Stores(models.Model):
+    """A seller's store page on a marketplace, read once per seller.
+
+    Most Trendyol links point at a store (/magaza/x-m-{seller id}) whose URL
+    carries only the id. `fetch_stores` reads the store page and keeps what it
+    says about the seller; `stores.store_brand` decides from that whether the
+    store is a brand's own. Links are matched to a store by the seller id in
+    their URL, so there is no foreign key: 341 links share the busiest store.
+    """
+
+    platform = models.CharField(max_length=20, default=LinkProducts.Platform.TRENDYOL)
+    seller_id = models.CharField(max_length=32)
+    link_count = models.PositiveIntegerField(default=0, help_text="Links pointing at this store; the busiest are read first")
+
+    # --- read from the store page ---
+    name = models.CharField(max_length=200, blank=True, default="")
+    verified = models.BooleanField(default=False, help_text="The page carries the marketplace's verified-seller mark")
+    product_brands = models.JSONField(default=dict, blank=True, help_text="Brands of the products shown on the page, with counts")
+    status = models.CharField(
+        max_length=10, choices=LinkProducts.FetchStatus.choices, default=LinkProducts.FetchStatus.PENDING, db_index=True
+    )
+    fetched_at = models.DateTimeField(null=True, blank=True)
+    http_version = models.CharField(max_length=10, blank=True, default="")
+
+    class Meta:
+        db_table = "stores"
+        verbose_name = "store"
+        verbose_name_plural = "stores"
+        ordering = ["-link_count", "id"]
+        constraints = [models.UniqueConstraint(fields=["platform", "seller_id"], name="uniq_store")]
+
+    def __str__(self) -> str:
+        return f"{self.platform} {self.seller_id}: {self.name or '?'}"
