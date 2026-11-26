@@ -68,3 +68,60 @@ class LinkDetails(models.Model):
 
     def __str__(self) -> str:
         return f"{self.link_id} -> {self.link_detail[:80]} [{self.status}]"
+
+
+class LinkProducts(models.Model):
+    """A product id found in a resolved link.
+
+    A separate table because one link can carry many products: a Trendyol
+    product list holds up to 100 ids. The ids are filled by `extract_products`
+    from the stored URLs and chains, without any network request; the name and
+    brand by `fetch_products`, which reads the product pages.
+    """
+
+    class Platform(models.TextChoices):
+        TRENDYOL = "trendyol", "Trendyol"
+        HEPSIBURADA = "hepsiburada", "Hepsiburada"
+        AMAZON = "amazon", "Amazon"
+        SHOPIER = "shopier", "Shopier"
+
+    class Source(models.TextChoices):
+        PATH = "path", "Product page URL"  # .../urun-p-123
+        QUERY = "query", "id= parameter of the final URL"  # /sr?mid=..&id=1,2,3
+        CHAIN = "chain", "App deep link in the redirect chain"  # ContentIds=1,2,3
+
+    class FetchStatus(models.TextChoices):
+        PENDING = "pending", "Not fetched yet"
+        OK = "ok", "OK"
+        NOT_FOUND = "not_found", "Not found"  # 404, or redirected away: the product was removed
+        BLOCKED = "blocked", "Blocked"  # 401/403/429
+        ERROR = "error", "Error"  # timeout, 5xx, or a page without a product name
+
+    link = models.ForeignKey(Links, on_delete=models.CASCADE, related_name="products")
+    platform = models.CharField(max_length=20, choices=Platform.choices)
+    product_id = models.CharField(max_length=64, help_text="The platform's own id (Trendyol content id, Hepsiburada SKU, ASIN)")
+    source = models.CharField(max_length=10, choices=Source.choices, help_text="Where in the link the id was found")
+
+    # --- filled by `fetch_products` from the product's page ---
+    # A product listed under many links is fetched once; all its rows get the same values.
+    product_name = models.CharField(max_length=300, blank=True, default="")
+    brand = models.CharField(max_length=100, blank=True, default="")
+    status = models.CharField(max_length=10, choices=FetchStatus.choices, default=FetchStatus.PENDING, db_index=True)
+    fetched_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "link_products"
+        verbose_name = "link product"
+        verbose_name_plural = "link products"
+        ordering = ["id"]
+        constraints = [
+            # Makes `extract_products` safe to run twice.
+            models.UniqueConstraint(fields=["link", "platform", "product_id"], name="uniq_link_product"),
+        ]
+        indexes = [
+            # The same product appears under many links; look it up by its id.
+            models.Index(fields=["platform", "product_id"], name="product_lookup"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.link_id}: {self.platform} {self.product_id}"

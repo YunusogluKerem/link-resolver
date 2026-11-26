@@ -1,11 +1,11 @@
-"""Read-only API over the resolved links."""
+"""Read-only API over the resolved links and the products found in them."""
 
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-from links.models import LinkDetails
+from links.models import LinkDetails, LinkProducts
 
 
 class LinkDetailSerializer(serializers.ModelSerializer):
@@ -23,7 +23,19 @@ class LinkDetailSerializer(serializers.ModelSerializer):
         ]  # fmt: skip
 
 
-class LinkDetailPagination(PageNumberPagination):
+class LinkProductSerializer(serializers.ModelSerializer):
+    link_id = serializers.IntegerField(read_only=True)
+    content_id = serializers.IntegerField(source="link.content_id", read_only=True)
+
+    class Meta:
+        model = LinkProducts
+        fields = [
+            "id", "link_id", "content_id", "platform", "product_id", "source",
+            "product_name", "brand", "status", "fetched_at",
+        ]  # fmt: skip
+
+
+class PageCountPagination(PageNumberPagination):
     """Fixed 1000 rows per page, plus how many pages exist and how many are left."""
 
     page_size = 1000
@@ -51,4 +63,16 @@ class LinkDetailListView(ListAPIView):
     # A fixed order keeps pages stable between requests.
     queryset = LinkDetails.objects.select_related("link").order_by("id")
     serializer_class = LinkDetailSerializer
-    pagination_class = LinkDetailPagination
+    pagination_class = PageCountPagination
+
+
+class LinkProductListView(ListAPIView):
+    """GET /api/link-products/?page=N[&platform=trendyol]  (admin only)."""
+
+    serializer_class = LinkProductSerializer
+    pagination_class = PageCountPagination
+
+    def get_queryset(self):
+        products = LinkProducts.objects.select_related("link").order_by("id")
+        platform = self.request.query_params.get("platform")
+        return products.filter(platform=platform) if platform else products

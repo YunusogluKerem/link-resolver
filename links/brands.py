@@ -1,6 +1,9 @@
 """Brand detection: does the URL name a product brand (not the marketplace)?
 
 Rules, most reliable first:
+  0. The product's own page named its brand (`fetch_products` read it into
+     link_products.brand): that is the shop's own statement, so it wins. A
+     link whose products are too mixed to have one brand has no brand.
   1. Marketplace product pages have a known structure, so the brand is read
      from its position: Trendyol's first path segment, the start of a
      Hepsiburada slug.
@@ -13,8 +16,9 @@ Rules, most reliable first:
      site's name (og:site_name when the page was read, else the domain name).
 
 The brand list lives in brands.txt and the non-brand domains in
-non_brand_domains.txt. The only entry point is `detect_brand(url, site_name)`,
-so an AI-based detector can replace it later without touching the resolver or API.
+non_brand_domains.txt. The only entry point is
+`detect_brand(url, site_name, product_brand)`, so an AI-based detector can
+replace it later without touching the resolver or API.
 """
 
 import re
@@ -45,12 +49,20 @@ _HEPSIBURADA_PRODUCT = re.compile(r"^(.+)-pm?-[A-Za-z0-9]+$")
 _LOOKS_LIKE_DOMAIN = re.compile(r"[\w-]+(\.[\w-]+)+")
 
 
-def detect_brand(url: str, site_name: str = "") -> str | None:
-    """Return the brand named in the URL, or None.
+def detect_brand(url: str, site_name: str = "", product_brand: str | None = None) -> str | None:
+    """Return the brand the link points at, or None.
 
     `site_name` is the final page's og:site_name when the resolver could read
     it (see `page_site_name`); it is only used for a brand's own website.
+    `product_brand` is what the link's product pages say (see
+    `products.product_brands`): a brand name, "" when the products are too
+    mixed to name one brand, or None when no product page named a brand.
     """
+    # 0. The product pages say what the brand is: nothing in the URL beats that.
+    if product_brand is not None:
+        product_brand = " ".join(product_brand.split())
+        return _listed_spelling(product_brand) if product_brand else None
+
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
     host_labels = host.split(".")
@@ -135,8 +147,7 @@ def _own_site_brand(host: str, site_name: str) -> str | None:
     # Some pages put a slogan or their own address there; the domain rule reads better then.
     usable = site_name and len(site_name) <= MAX_SITE_NAME and not _LOOKS_LIKE_DOMAIN.fullmatch(site_name)
     if usable:
-        entry = _brand_index().get(tuple(_tokens(site_name)))
-        return entry[0] if entry else site_name
+        return _listed_spelling(site_name)
 
     labels = host.split(".")
     if len(labels) < 2 or labels[-1].isdigit():  # "localhost" or an IP address
@@ -145,6 +156,12 @@ def _own_site_brand(host: str, site_name: str) -> str | None:
     if len(labels) > 1 and labels[-1] in GENERIC_SECOND_LEVEL:
         labels.pop()  # com.tr, co.uk
     return _display_name(labels[-1])
+
+
+def _listed_spelling(name: str) -> str:
+    """The brand list's spelling of a name read from a page ("ESTEE LAUDER" -> "Estée Lauder"), else the name."""
+    entry = _brand_index().get(tuple(_tokens(name)))
+    return entry[0] if entry else name
 
 
 def _from_trendyol(segments: list[str]) -> str | None:

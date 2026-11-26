@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from links.api import LinkDetailPagination
+from links.api import PageCountPagination
 from links.models import LinkDetails, Links
 
 URL = "/api/link-details/"
@@ -67,7 +67,7 @@ class LinkDetailsApiTests(TestCase):
 
     def test_remaining_pages_counts_down(self):
         self._login("admin", "admin-pass")
-        with mock.patch.object(LinkDetailPagination, "page_size", 2):
+        with mock.patch.object(PageCountPagination, "page_size", 2):
             first = self.client.get(URL).json()
             second = self.client.get(URL, {"page": 2}).json()
         self.assertEqual((first["total_pages"], first["current_page"], first["remaining_pages"]), (2, 1, 1))
@@ -76,4 +76,4 @@ class LinkDetailsApiTests(TestCase):
         self.assertEqual(len(second["results"]), 1)
 
     def test_page_size_is_1000(self):
-        self.assertEqual(LinkDetailPagination.page_size, 1000)
+        self.assertEqual(PageCountPagination.page_size, 1000)

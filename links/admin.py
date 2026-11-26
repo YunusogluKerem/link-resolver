@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from links.models import LinkDetails, Links
+from links.models import LinkDetails, LinkProducts, Links
 
 
 @admin.register(Links)
@@ -20,3 +20,16 @@ class LinkDetailsAdmin(admin.ModelAdmin):
     @admin.display(description="content id", ordering="link__content_id")
     def content_id(self, detail: LinkDetails) -> int:
         return detail.link.content_id
+
+
+@admin.register(LinkProducts)
+class LinkProductsAdmin(admin.ModelAdmin):
+    list_display = ["id", "content_id", "platform", "product_id", "source", "status", "product_name", "brand", "fetched_at"]
+    list_filter = ["platform", "source", "status"]
+    search_fields = ["product_id", "product_name", "brand", "link__content_id"]
+    list_select_related = ["link"]
+    raw_id_fields = ["link"]
+
+    @admin.display(description="content id", ordering="link__content_id")
+    def content_id(self, product: LinkProducts) -> int:
+        return product.link.content_id

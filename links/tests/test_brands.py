@@ -51,6 +51,25 @@ class DetectBrandTests(SimpleTestCase):
         self.assertEqual(detect_brand("https://www.oxxo.com.tr/yeni-sezon"), "Oxxo")
 
 
+class ProductPageBrandTests(SimpleTestCase):
+    """A brand read from the product's own page beats anything read from the URL."""
+
+    def test_product_brand_wins_over_the_url(self):
+        # The slug starts with no listed brand, and the store is not a brand either.
+        url = "https://www.hepsiburada.com/akilli-robot-supurge-13-000-pa-beyaz-p-HBCV0000EUMLOS"
+        self.assertIsNone(detect_brand(url))
+        self.assertEqual(detect_brand(url, product_brand="Roborock"), "Roborock")
+        self.assertEqual(detect_brand("https://www.trendyol.com/sr?mid=968&id=1,2", product_brand="Roborock"), "Roborock")
+
+    def test_listed_brand_keeps_the_list_spelling(self):
+        self.assertEqual(detect_brand("https://www.hepsiburada.com/x-p-HBV00000ABC", "", "ESTEE  LAUDER"), "Estée Lauder")
+
+    def test_mixed_products_mean_no_brand_even_if_the_url_names_one(self):
+        url = "https://www.hepsiburada.com/magaza/estee-lauder"
+        self.assertEqual(detect_brand(url), "Estée Lauder")  # nothing known about the products
+        self.assertIsNone(detect_brand(url, product_brand=""))
+
+
 class OwnSiteBrandTests(SimpleTestCase):
     """Rule 4: a site that is not on the non-brand list is a brand's own website."""
 
