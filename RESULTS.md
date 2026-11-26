@@ -166,9 +166,26 @@ Bunun üzerine kural değişti: onaylı satıcı işareti kuraldan çıkarıldı
 
 - **İşaret kalkınca 43 mağaza (125 satır) düştü.** Çoğu çok markalı satıcıdır ve düşmesi doğrudur: `P&G Türkiye`, `SaatveSaat`, `ebebek`, `Watsons`, `Rossmann`, `Unilever`, `SuperStep`, `A101 Ekstra`, `Trendyol`. Aralarında markanın kendi mağazası olup adı ürün markasıyla eşleşmeyenler de vardır: `ARMANI BEAUTY` (ürünlerde "Giorgio Armani", 12 satır), `Katia and Bony` (ürünlerde "Katia&Bony", 7 satır), `Marks and Spencer` (ürünlerde "Marks & Spencer").
 - **Esnek eşleşmeyle 44 mağaza (85 satır) geldi:** 19'u daha önce hiç sayılmıyordu (`StopForte`, `FRESH SCARFS`, `Kyza`, `VAGON TOYS` dahil), 25'i yalnızca işaretle sayılıyordu ve artık ürün markasının adıyla yazılıyor (`SkinSensual` → Skin Sensual, `Civil` → Civil Baby).
-- **Esnek eşleşmenin bir yan etkisi:** elle kontrolde yanlış bulunan `boomglobal`, ürünlerinin çoğu "BOOM" markası olduğu ve mağaza adı bu markayı içerdiği için yeniden, bu kez "BOOM" olarak sayılıyor. "ve" ile "&" farkı ise hâlâ eşleşmiyor (`Katia and Bony`).
+- **`boomglobal` yeniden sayılıyor, bu kez "BOOM" olarak:** ürünlerinin çoğu BOOM markasıdır ve mağaza adı bu markayı içerir. İlk kontrolde yanlış sayılmasının nedeni mağaza adının marka diye yazılmasıydı; ürün markasının adıyla yazılınca doğrudur.
 
-İki kurallı sonuç ayrıca elle doğrulanmadı.
+### Son hali
+
+İki küçük düzeltme daha yapıldı: ad karşılaştırmasında "and", "ve" ve "&" aynı sayılıyor (`Katia and Bony`, `Marks and Spencer`), ve ürünleri "Giorgio Armani" adıyla satılan `ARMANI BEAUTY` için marka listesine Armani eklendi. 21 satır daha marka kazandı; başka hiçbir satır değişmedi.
+
+| Son URL | Satır | Yalnızca URL'den | Son hali |
+|---|---|---|---|
+| Trendyol | 2269 | 30 (%1,3) | 1940 (%85,5) |
+| Hepsiburada | 712 | 285 (%40,0) | 293 (%41,2) |
+| Diğer siteler | 1019 | 375 (%36,8) | 390 (%38,3) |
+| **Toplam** | 4000 | 690 (%17,3) | 2623 (%65,6) |
+
+| Mağaza kuralı | Mağaza | Link satırı |
+|---|---|---|
+| Ad marka listesinde (`listed`) | 66 | 846 |
+| Ürünleri tek marka, mağaza aynı adı taşıyor (`products`) | 429 | 1079 |
+| Marka sayılmadı | 103 | 228 |
+
+Bu son hal ayrıca elle doğrulanmadı; yukarıdaki %87'lik ölçüm ilk, üç kurallı sürüme aittir.
 
 ## Marka tespiti ayrıntıları
 

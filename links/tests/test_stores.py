@@ -52,6 +52,8 @@ class StoreBrandTests(SimpleTestCase):
     def test_store_named_after_a_listed_brand(self):
         self.assertEqual(store_brand("Koton", {}), ("Koton", "listed"))
         self.assertEqual(store_brand("ESTEE LAUDER Türkiye", {}), ("Estée Lauder", "listed"))
+        # Listed with its other names, because its products are sold as "Giorgio Armani".
+        self.assertEqual(store_brand("ARMANI BEAUTY", {"Giorgio Armani": 19, "Emporio Armani": 3}), ("Armani", "listed"))
 
     def test_store_named_after_the_brand_of_its_products(self):
         products = {"Yves Saint Laurent": 71, "Lancôme": 2}
@@ -65,6 +67,9 @@ class StoreBrandTests(SimpleTestCase):
             "HİROSH": "HİROS'H",  # Turkish letters
             "Kyza": "kyza skin",  # the brand is a longer form of the store's name
             "Dilay Gökoğlu": "Dilay Gökoğlu Butik",
+            "Katia and Bony": "Katia&Bony",  # "and", "ve" and "&" are one word
+            "Marks and Spencer": "Marks & Spencer",
+            "Ayşe ve Kızları": "Ayşe & Kızları",
         }
         for store, brand in cases.items():
             self.assertEqual(store_brand(store, {brand: 12, "Başka": 3}), (brand, "products"), store)
@@ -73,7 +78,7 @@ class StoreBrandTests(SimpleTestCase):
         self.assertEqual(store_brand("OG Store", {}), (None, ""))
         # One brand on the shelves is not enough: the store does not share its name.
         self.assertEqual(store_brand("Moda Dükkanı", {"Koton": 20}), (None, ""))
-        self.assertEqual(store_brand("ARMANI BEAUTY", {"Giorgio Armani": 19, "Emporio Armani": 3}), (None, ""))
+        self.assertEqual(store_brand("Sheker Kids", {"SHEKER HOME": 23}), (None, ""))
         # Shares a name with a brand that is a small part of what it sells.
         self.assertEqual(store_brand("Rowenta Outlet", {"English Home": 52, "Rowenta": 3}), (None, ""))
         # Two letters are inside almost any name.

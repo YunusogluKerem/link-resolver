@@ -49,6 +49,8 @@ TEXT_PARAMS = ("q", "utm_campaign")
 MAX_BRAND_WORDS = 3
 # Shortest name `same_name` will compare.
 MIN_SAME_NAME_LENGTH = 3
+# Written out in one spelling and as "&" in another; `same_name` drops them ("&" is punctuation already).
+JOINING_WORDS = {"and", "ve"}
 
 _TRENDYOL_PRODUCT = re.compile(r"-p-\d+$")
 _TRENDYOL_BRAND_PAGE = re.compile(r"^(.+)-x-b\d+$")
@@ -144,10 +146,13 @@ def same_name(name: str, other: str) -> bool:
 
     Case, spaces, punctuation and Turkish letters are ignored, and one may be a
     longer form of the other: "FRESH SCARFS" ~ "Freshscarfs", "Kyza" ~ "kyza skin",
-    "Dilay Gökoğlu" ~ "Dilay Gökoğlu Butik". Very short names never match:
-    two letters are inside almost anything.
+    "Dilay Gökoğlu" ~ "Dilay Gökoğlu Butik". "and", "ve" and "&" are the same
+    word: "Katia and Bony" ~ "Katia&Bony". Very short names never match: two
+    letters are inside almost anything.
     """
-    a, b = "".join(_tokens(name)), "".join(_tokens(other))
+    a, b = (
+        "".join(word for word in _tokens(text) if word not in JOINING_WORDS) for text in (name, other)
+    )
     return min(len(a), len(b)) >= MIN_SAME_NAME_LENGTH and (a in b or b in a)
 
 

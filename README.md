@@ -8,7 +8,7 @@ Stack: Python 3.12, Django 5.2 (LTS), Django REST Framework, simplejwt, httpx (a
 
 - **Veri:** 4000 satır, 3305 benzersiz URL; tamamı yaklaşık 3,5 dakikada çözülür.
 - **Son URL:** satırların %98'inde bulunur (3907 / 4000).
-- **Marka:** satırların %65'inde tespit edilir (2602 / 4000): Trendyol'da %85, Hepsiburada'da %41. Yalnızca URL'den %17,3 idi; artış Trendyol mağaza sayfalarının okunmasından gelir ([RESULTS.md](RESULTS.md#mağaza-sayfaları)).
+- **Marka:** satırların %65,6'sında tespit edilir (2623 / 4000): Trendyol'da %85,5, Hepsiburada'da %41. Yalnızca URL'den %17,3 idi; artış Trendyol mağaza sayfalarının okunmasından gelir ([RESULTS.md](RESULTS.md#mağaza-sayfaları)).
 - **Kurulum:** `.env` ve Excel yerine konduktan sonra tek komut: `docker compose up -d`.
 - **API:** yalnızca admin kullanıcıya açık, JWT ile; sayfa başına 1000 kayıt.
 

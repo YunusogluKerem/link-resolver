@@ -199,7 +199,7 @@ Trendyol linklerinin çoğu bir ürüne değil, bir satıcının mağazasına (`
 | `listed` | Mağaza adı marka listesindeki bir markayla başlar (`Koton`) | Listedeki yazım |
 | `products` | Sayfadaki ürünlerin en az yarısı tek markadır ve mağazanın adı ile o marka aynı adı taşır | Ürünlerdeki yazım |
 
-"Aynı ad" esnek karşılaştırılır (`brands.same_name`): büyük/küçük harf, boşluk, noktalama ve Türkçe karakter farkı sayılmaz, ve biri diğerinin uzun hali olabilir (`FRESH SCARFS` ~ `Freshscarfs`, `StopForte` ~ `STOP Forte`, `Kyza` ~ `kyza skin`). Üç harften kısa adlar karşılaştırılmaz.
+"Aynı ad" esnek karşılaştırılır (`brands.same_name`): büyük/küçük harf, boşluk, noktalama ve Türkçe karakter farkı sayılmaz, biri diğerinin uzun hali olabilir (`FRESH SCARFS` ~ `Freshscarfs`, `StopForte` ~ `STOP Forte`, `Kyza` ~ `kyza skin`), "and", "ve" ve "&" de aynı sayılır (`Katia and Bony` ~ `Katia&Bony`). Üç harften kısa adlar karşılaştırılmaz.
 
 Karar tabloya yazılmaz, `detect_brands` sırasında hesaplanır; kural ya da marka listesi değişince sayfaları yeniden okumak gerekmez. Mağaza markası son kaynaktır: ürün sayfasının söylediği marka ve URL'nin adını verdiği marka önce gelir.
 
