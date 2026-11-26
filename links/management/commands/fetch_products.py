@@ -38,6 +38,13 @@ class Command(BaseCommand):
         parser.add_argument(
             "--cooldown", type=float, default=30.0, help="Seconds to wait after a site refuses a request (default 30)"
         )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=1,
+            help="Parallel requests per site (default 1). More only helps with --proxy: from one address "
+            "the site's rate limit is reached sooner",
+        )
         parser.add_argument("--timeout", type=float, default=15.0, help="Seconds per request (default 15)")
         parser.add_argument("--limit", type=int, help="Fetch at most N products (for a trial run)")
         parser.add_argument(
@@ -56,8 +63,9 @@ class Command(BaseCommand):
         )
 
     def handle(
-        self, *args, platform, delay, cooldown, timeout, limit, per_link, force, retry_failed, proxy, **options
-    ):
+        self, *args, platform, delay, cooldown, concurrency, timeout, limit, per_link, force, retry_failed, proxy,
+        **options,
+    ):  # fmt: skip
         # Opt-in per run: without --proxy the requests always leave from this machine.
         proxy_url = os.environ.get(PROXY_VARIABLE, "") if proxy else None
         if proxy and not proxy_url:
@@ -68,11 +76,12 @@ class Command(BaseCommand):
             self.stdout.write("Nothing to fetch. Use --retry-failed or --force to fetch products again.")
             return
         via = " through the proxy" if proxy_url else ""
-        self.stdout.write(f"Fetching {len(targets)} products{via}, one request every {delay:g}s per site...")
+        workers = f"{concurrency} at a time, each waiting {delay:g}s" if concurrency > 1 else f"one every {delay:g}s"
+        self.stdout.write(f"Fetching {len(targets)} products{via}, {workers} per site...")
 
         started = time.monotonic()
         try:
-            counts = asyncio.run(self._run(targets, delay, cooldown, timeout, proxy_url))
+            counts = asyncio.run(self._run(targets, delay, cooldown, max(1, concurrency), timeout, proxy_url))
         except KeyboardInterrupt:
             # Every product is saved as soon as it is read, so nothing fetched is lost.
             self.stdout.write("\nInterrupted. Run the same command again to continue with the products left.")
@@ -113,44 +122,59 @@ class Command(BaseCommand):
         ordered = sorted(urls, key=rank.__getitem__)  # stable: ties keep the table's order
         return [(*key, urls[key]) for key in ordered][:limit]
 
-    async def _run(self, targets, delay, cooldown, timeout, proxy_url=None) -> Counter:
+    async def _run(self, targets, delay, cooldown, concurrency, timeout, proxy_url=None) -> Counter:
         by_host: dict[str, list] = defaultdict(list)
         for target in targets:
             by_host[urlsplit(target[2]).hostname].append(target)
         counts: Counter = Counter()
+        # A rotating proxy gives every connection another exit address, so no connection is reused.
+        options = {"timeout": timeout, "proxy": proxy_url, "keepalive": not proxy_url}
 
-        async with (
-            build_client(timeout=timeout, proxy=proxy_url) as http2_client,
-            build_client(timeout=timeout, proxy=proxy_url, http2=False) as http1_client,
-        ):
+        async with build_client(**options) as http2_client, build_client(**options, http2=False) as http1_client:
 
             async def crawl(host: str, items: list) -> None:
-                """One site: its products one after the other, with a pause between requests."""
+                """One site: `concurrency` workers share its products, each pausing between its own requests."""
+                pending = iter(items)
                 client = http2_client
-                blocked_in_a_row = 0
-                for index, (name, product_id, url) in enumerate(items):
-                    if index:
-                        # A refusal usually means "too fast": give the site a longer rest before going on.
-                        await asyncio.sleep(cooldown if blocked_in_a_row else delay)
-                    page = await fetch_product(client, url, product_id)
-                    if page.refused_http2 and client is http2_client:
-                        second = await fetch_product(http1_client, url, product_id)
-                        if second.status != Status.BLOCKED:
-                            # This site refuses HTTP/2 and answers HTTP/1.1: stay on it for the rest.
-                            page, client = second, http1_client
-                            self.stdout.write(f"  {host}: HTTP/2 refused, continuing over HTTP/1.1")
-                    # The ORM is synchronous, so the write runs in a worker thread.
-                    await sync_to_async(self._save)(name, product_id, page)
-                    counts[(name, page.status)] += 1
-                    blocked_in_a_row = blocked_in_a_row + 1 if page.status == Status.BLOCKED else 0
-                    if blocked_in_a_row >= MAX_BLOCKED_IN_A_ROW:
-                        left = len(items) - index - 1
-                        self.stdout.write(f"  {host}: refused {blocked_in_a_row} times in a row, {left} left untouched")
-                        return
-                    if (index + 1) % 50 == 0:
-                        self.stdout.write(f"  {host}: {index + 1}/{len(items)}")
+                blocked_in_a_row = done = 0
+                stopped = False
 
-            # Sites do not wait for each other; the pause is per site.
+                async def worker() -> None:
+                    nonlocal client, blocked_in_a_row, done, stopped
+                    pause = 0.0
+                    for name, product_id, url in pending:
+                        if pause:
+                            await asyncio.sleep(pause)
+                        if stopped:
+                            return
+                        used = client
+                        page = await fetch_product(used, url, product_id)
+                        if page.refused_http2 and used is http2_client:
+                            second = await fetch_product(http1_client, url, product_id)
+                            if second.status != Status.BLOCKED:
+                                page = second
+                                if client is http2_client:
+                                    # This site refuses HTTP/2 and answers HTTP/1.1: stay on it for the rest.
+                                    client = http1_client
+                                    self.stdout.write(f"  {host}: HTTP/2 refused, continuing over HTTP/1.1")
+                        # The ORM is synchronous, so the write runs in a worker thread.
+                        await sync_to_async(self._save)(name, product_id, page)
+                        counts[(name, page.status)] += 1
+                        done += 1
+                        blocked_in_a_row = blocked_in_a_row + 1 if page.status == Status.BLOCKED else 0
+                        if blocked_in_a_row >= MAX_BLOCKED_IN_A_ROW and not stopped:
+                            stopped = True
+                            left = len(items) - done
+                            self.stdout.write(f"  {host}: refused {blocked_in_a_row} times in a row, {left} left untouched")
+                            return
+                        if done % 50 == 0:
+                            self.stdout.write(f"  {host}: {done}/{len(items)}")
+                        # A refusal usually means "too fast": a longer rest before this worker goes on.
+                        pause = cooldown if page.status == Status.BLOCKED else delay
+
+                await asyncio.gather(*(worker() for _ in range(concurrency)))
+
+            # Sites do not wait for each other; the pauses are per site.
             await asyncio.gather(*(crawl(host, items) for host, items in by_host.items()))
         return counts
 

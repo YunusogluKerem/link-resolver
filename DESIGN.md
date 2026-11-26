@@ -161,7 +161,7 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 - **Sıra link link ilerler:** önce her linkin ilk ürünü, sonra her linkin ikinci ürünü okunur. Bir ürün listesi 100'e kadar ürün taşır, ama linkin markasına birkaç ürün karar verir; böylece yarıda kalan bir çalıştırma da her linke dokunmuş olur. `--per-link N` her linkten en çok N ürün okur: `--per-link 3`, Trendyol'da 4041 yerine 479 ürünle her link için alt sınırı karşılar.
 - **Kesilirse kaldığı yerden devam eder.** Her ürün okunur okunmaz kaydedilir ve komut varsayılan olarak yalnızca `pending` ürünleri işler; Ctrl+C'den sonra aynı komut kalan ürünlerle sürer. Site reddettiği için duran bir çalıştırmada reddedilen ürünler `blocked` olur; onlar `--retry-failed` ile yeniden denenir.
 - **Varsayılan platformlar Hepsiburada ve Shopier'dir.** Trendyol `--platform trendyol` ile istenir. Amazon kapsam dışıdır: düz isteğe ürün yerine bot kontrol sayfası döner.
-- **Seçenekler:** `--platform`, `--delay`, `--cooldown`, `--per-link N`, `--limit N`, `--retry-failed` (önceki `blocked` ve `error` sonuçlarını da dener), `--force`, `--timeout`, `--proxy`.
+- **Seçenekler:** `--platform`, `--delay`, `--cooldown`, `--concurrency N`, `--per-link N`, `--limit N`, `--retry-failed` (önceki `blocked` ve `error` sonuçlarını da dener), `--force`, `--timeout`, `--proxy`.
 
 | `status` | Anlamı |
 |---|---|
@@ -175,7 +175,7 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 
 **HTTP sürümü otomatik seçilir.** Trendyol bu istemcinin HTTP/2 isteklerini 403 ile reddeder (ana sayfa dahil, Türkiye çıkışlı taze bir IP'den de), aynı başlıklarla HTTP/1.1 isteğine 200 döner; Hepsiburada tam tersini yapar. Bu yüzden kural siteye değil cevaba bağlıdır: HTTP/2 isteğine 403 gelirse aynı istek bir kez HTTP/1.1 ile denenir; HTTP/1.1 cevap alırsa o site için çalıştırmanın sonuna kadar HTTP/1.1'de kalınır, böylece her istekte boşa bir HTTP/2 denemesi yapılmaz. HTTP/1.1 de 403 dönerse ilk cevap geçerlidir. Aynı kural `resolve_links` için de geçerlidir. Hangi sürümün cevap verdiği kaydedilir: ürünlerde `http_version` alanına, link zincirinde HTTP/1.1 ile alınan adımın `http` anahtarına. Gözlem 26 Kasım 2026 tarihlidir ve değişebilir.
 
-**Proxy (isteğe bağlı).** `--proxy` verilirse istekler `.env`'deki `FETCH_PROXY_URL` adresinden (`http://kullanıcı:şifre@host:port`) geçer. Varsayılan olarak kapalıdır ve yalnızca bu komutta vardır; adres hiçbir çıktıya yazılmaz. Trendyol için gerekmediği görüldü: proxy ile de HTTP/2 reddedildi, proxy'siz HTTP/1.1 çalıştı. Sonuçlar: [RESULTS.md](RESULTS.md#ürün-bilgisi).
+**Proxy ve paralel okuma (isteğe bağlı).** `--proxy` verilirse istekler `.env`'deki `FETCH_PROXY_URL` adresinden (`http://kullanıcı:şifre@host:port`) geçer. Varsayılan olarak kapalıdır ve yalnızca bu komutta vardır; adres hiçbir çıktıya yazılmaz. Proxy HTTP sürümü sorununu çözmez (proxy ile de HTTP/2 reddedildi), hız sınırını çözer: sınır adres başınadır ve dönen bir proxy her bağlantıya başka bir çıkış adresi verir. Bu yüzden proxy açıkken bağlantılar yeniden kullanılmaz; her istek yeni bir bağlantı, yani yeni bir adrestir. `--concurrency N` site başına N isteği aynı anda yürütür (varsayılan 1): işçiler aynı ürün kuyruğundan çeker, her biri kendi istekleri arasında `--delay` kadar bekler. Proxy'siz paralel okuma yalnızca sınıra daha çabuk ulaştırır. Sonuçlar: [RESULTS.md](RESULTS.md#son-durum).
 
 API: `GET /api/link-products/?page=N` (isteğe bağlı `&platform=...`), `link-details` ile aynı sayfalama alanlarıyla; satır başına ek sorgu yoktur.
 

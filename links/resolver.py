@@ -55,18 +55,27 @@ class ResolveResult:
 
 
 def build_client(
-    timeout: float = 10.0, max_connections: int = 100, proxy: str | None = None, http2: bool = True
+    timeout: float = 10.0,
+    max_connections: int = 100,
+    proxy: str | None = None,
+    http2: bool = True,
+    keepalive: bool = True,
 ) -> httpx.AsyncClient:
     """One shared client: connection pooling and HTTP/2 make repeated hosts cheap.
 
     `http2=False` builds the HTTP/1.1 client that is tried when a site refuses
-    HTTP/2 (see `http2_refused`). `proxy` is only passed by `fetch_products --proxy`.
+    HTTP/2 (see `http2_refused`). `proxy` is only passed by `fetch_products --proxy`;
+    with a rotating proxy `keepalive=False` opens a new connection, and so a new
+    exit address, for every request.
     """
+    limits = httpx.Limits(max_connections=max_connections)
+    if not keepalive:
+        limits = httpx.Limits(max_connections=max_connections, max_keepalive_connections=0)
     return httpx.AsyncClient(
         http2=http2,
         headers=DEFAULT_HEADERS,
         timeout=httpx.Timeout(timeout),
-        limits=httpx.Limits(max_connections=max_connections),
+        limits=limits,
         follow_redirects=False,
         proxy=proxy,
     )

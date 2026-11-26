@@ -116,7 +116,7 @@ Trendyol satırı aşağıdaki 20 ürünlük denemeyi içerir; 4041 ürünün ka
 
 **Tam tarama denemesi yarıda kaldı.** Saniyede bir istekle başlatılan tarama 74 istekten sonra durdu: 65 ürün okundu, 9'u reddedildi. Düzen iki kez aynıydı: yaklaşık 35 başarılı istekten sonra art arda retler; ikinci seferde 5 ret üst üste gelince komut kendiliğinden durdu. Yani Trendyol hızı da sınırlıyor; saniyede bir istek fazla. Okunan 65 ürün yine aynı 100 ürünlük Tchibo listesindendi (tarama tablo sırasıyla ilerliyordu), bu yüzden marka oranı değişmedi: 720 satır (%18,0). Toplam 85 Trendyol ürünü okundu, 80'inde marka var.
 
-Bu denemeden sonra komut değişti: ret alınca 30 saniye bekler, ürünleri link link sırayla okur ve `--per-link` seçeneği vardır. `--per-link 3` ile okunması gereken ürün sayısı 3975'ten 479'a iner; her linkin markasına karar vermek için bu yeterlidir. Bu çalıştırma henüz yapılmadı.
+Bu denemeden sonra komut değişti: ret alınca 30 saniye bekler, ürünleri link link sırayla okur ve `--per-link` seçeneği vardır. `--per-link 3` ile okunması gereken ürün sayısı 3975'ten 479'a iner; her linkin markasına karar vermek için bu yeterlidir. Tam tarama sonradan proxy ile yapıldı (bkz. "Son durum").
 
 ## Mağaza sayfaları
 
@@ -168,7 +168,7 @@ Bunun üzerine kural değişti: onaylı satıcı işareti kuraldan çıkarıldı
 - **Esnek eşleşmeyle 44 mağaza (85 satır) geldi:** 19'u daha önce hiç sayılmıyordu (`StopForte`, `FRESH SCARFS`, `Kyza`, `VAGON TOYS` dahil), 25'i yalnızca işaretle sayılıyordu ve artık ürün markasının adıyla yazılıyor (`SkinSensual` → Skin Sensual, `Civil` → Civil Baby).
 - **`boomglobal` yeniden sayılıyor, bu kez "BOOM" olarak:** ürünlerinin çoğu BOOM markasıdır ve mağaza adı bu markayı içerir. İlk kontrolde yanlış sayılmasının nedeni mağaza adının marka diye yazılmasıydı; ürün markasının adıyla yazılınca doğrudur.
 
-### Son hali
+### Mağaza kurallarının son hali
 
 İki küçük düzeltme daha yapıldı: ad karşılaştırmasında "and", "ve" ve "&" aynı sayılıyor (`Katia and Bony`, `Marks and Spencer`), ve ürünleri "Giorgio Armani" adıyla satılan `ARMANI BEAUTY` için marka listesine Armani eklendi. 21 satır daha marka kazandı; başka hiçbir satır değişmedi.
 
@@ -186,6 +186,41 @@ Bunun üzerine kural değişti: onaylı satıcı işareti kuraldan çıkarıldı
 | Marka sayılmadı | 103 | 228 |
 
 Bu son hal ayrıca elle doğrulanmadı; yukarıdaki %87'lik ölçüm ilk, üç kurallı sürüme aittir.
+
+## Son durum
+
+26 Kasım 2026, mağazalardan sonra Trendyol ürünlerinin tam taraması. Dönen bir proxy üzerinden, 30 istek aynı anda, her istek ayrı bir çıkış adresinden: 3955 ürün 7 dakika 48 saniyede denendi.
+
+| Trendyol ürünü (4060) | Sayı |
+|---|---|
+| Okundu | 4010 |
+| Markası okundu | 3826 (248 farklı marka) |
+| Ürün kaldırılmış (`not_found`) | 31 |
+| Hata (`error`) | 18 |
+| Reddedildi (`blocked`) | 1 |
+
+| Son URL | Satır | Yalnızca URL'den | Mağazalarla | Ürünlerle birlikte |
+|---|---|---|---|---|
+| Trendyol | 2269 | 30 (%1,3) | 1940 (%85,5) | 1988 (%87,6) |
+| Hepsiburada | 712 | 285 (%40,0) | 293 (%41,2) | 293 (%41,2) |
+| Diğer siteler | 1019 | 375 (%36,8) | 390 (%38,3) | 390 (%38,3) |
+| **Toplam** | 4000 | 690 (%17,3) | 2623 (%65,6) | 2671 (%66,8) |
+
+Ürün sayfası mağazadan önce geldiği için tarama üç şey yaptı: 55 satıra marka ekledi (mağazası marka sayılmayan satıcıların ürün listeleri), 28 satırda marka adını değiştirdi, 7 satırda markayı kaldırdı.
+
+İki yöntem aynı linklerde karşılaştırılabildi. Ürünlerinden tek marka çıkan 397 Trendyol linkinde:
+
+| Mağaza kuralı ne diyordu | Link |
+|---|---|
+| Aynı markayı | 308 |
+| Mağaza marka değil | 68 |
+| Başka bir marka | 21 |
+
+- **Başka marka çıkan 21 link:** çoğu, mağazanın adını taşıdığı markadan farklı bir markanın ürünlerini gösteren listelerdir (`Bioxcin` mağazasının "Bioder" ürünleri, 15 satır). Ürünlerin söylediği yazılır.
+- **Markasını kaybeden 7 satır:** ürünleri birkaç markaya dağılan listelerdir (`L'Oréal` mağazasının farklı markalardan ürünleri); çoğunluk kuralı gereği marka yazılmaz.
+- **Okunamayan 19 ürün** (`error` ve `blocked`) `--retry-failed` ile yeniden denenebilir; sonucu değiştirecek büyüklükte değildir.
+
+Bu son tablo elle doğrulanmadı; %87'lik elle kontrol ölçümü mağaza kuralının ilk sürümüne aittir.
 
 ## Marka tespiti ayrıntıları
 

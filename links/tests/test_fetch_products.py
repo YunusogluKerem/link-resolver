@@ -1,3 +1,4 @@
+import asyncio
 from io import StringIO
 from unittest import mock
 
@@ -9,6 +10,8 @@ from django.utils import timezone
 
 from links.models import LinkDetails, LinkProducts, Links
 from links.product_pages import parse_product, product_url
+
+real_sleep = asyncio.sleep  # the tests replace asyncio.sleep to skip the command's pauses
 
 HB_PAGE = "https://www.hepsiburada.com/roborock-s9-robot-supurge-p-HBCV0000EUMLOS"
 JSON_LD = """
@@ -210,11 +213,52 @@ class FetchProductsCommandTests(TransactionTestCase):
         _, calls = self._run(routes, "--platform", "trendyol")
         self.assertEqual(order(calls), ["13", "14"])  # the rest; product 12 was read once for both links
 
+    def test_concurrency_runs_that_many_requests_at_once(self):
+        Links.objects.all().delete()
+        urls = [f"https://www.shopier.com/birmagaza/{number}000000" for number in range(61, 69)]
+        for number, url in enumerate(urls, start=61):
+            make_link(number, url)
+        call_command("extract_products", stdout=StringIO())
+
+        def run(*args: str) -> tuple[int, list[str]]:
+            LinkProducts.objects.update(status="pending")
+            calls: list[str] = []
+            active = peak = 0
+
+            async def handler(request: httpx.Request) -> httpx.Response:
+                nonlocal active, peak
+                calls.append(str(request.url))
+                active += 1
+                peak = max(peak, active)
+                await real_sleep(0.01)  # the page takes a moment: others start meanwhile
+                active -= 1
+                return httpx.Response(200, html='<meta property="og:title" content="Kazak"/>')
+
+            def fake_client(**kwargs) -> httpx.AsyncClient:
+                return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+            with (
+                mock.patch("links.management.commands.fetch_products.build_client", fake_client),
+                mock.patch("links.management.commands.fetch_products.asyncio.sleep", mock.AsyncMock()),
+            ):
+                call_command("fetch_products", "--platform", "shopier", *args, stdout=StringIO())
+            return peak, calls
+
+        peak, calls = run()
+        self.assertEqual(peak, 1)  # the default: one request at a time
+
+        peak, calls = run("--concurrency", "3")
+        self.assertEqual(peak, 3)
+        self.assertEqual(sorted(calls), urls)  # every product once, none twice
+        self.assertEqual(LinkProducts.objects.filter(status="ok").count(), 8)
+
     def test_proxy_is_used_only_when_asked_for(self):
         seen: list = []
+        keepalive: list = []
 
         def fake_client(**kwargs) -> httpx.AsyncClient:
             seen.append(kwargs.get("proxy"))
+            keepalive.append(kwargs.get("keepalive"))
             return httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(403)))
 
         address = "http://user:secret@proxy.example:823"
@@ -228,6 +272,8 @@ class FetchProductsCommandTests(TransactionTestCase):
             call_command("fetch_products", "--platform", "shopier", "--retry-failed", "--proxy", stdout=out)
 
         self.assertEqual(seen, [None, None, address, address])  # two clients per run: HTTP/2 and HTTP/1.1
+        # Through a rotating proxy no connection is reused: every request leaves from another address.
+        self.assertEqual(keepalive, [True, True, False, False])
         self.assertNotIn("secret", out.getvalue())  # the address is never printed
 
     def test_proxy_without_an_address_is_an_error(self):
