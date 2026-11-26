@@ -93,6 +93,23 @@ Hepsiburada'da ad ve marka JSON-LD'den gelir. Shopier sayfalarında JSON-LD yokt
 
 Ürün sayfasından okunan marka en öncelikli kaynak yapılınca `brand_exist` 690 satırdan 698'e çıktı (%17,3 → %17,5); artışın tamamı Hepsiburada'dadır (285 → 293, %40,0 → %41,2). Kazanılan 8 satırın markaları marka listesinde yoktu (OG natural, Porsima, Bloomie, Frankly, Oithox). Markası sayfadan okunan diğer 30 satırda URL kuralı zaten aynı markayı buluyordu; iki yöntem birbirini doğruladı. Bu belgenin başındaki tablolar bu adımdan önceki durumu gösterir.
 
+Shopier mağaza kuralı (`shopier.com/{mağaza}/{ürün}` linkinde mağaza adı marka sayılır) 11 satır daha ekledi: 698 → 709 (%17,5 → %17,7). Veride altı mağaza vardır. Ürün adlarına bakılarak ikisi marka sayıldı (kendi ürününü satan `emekatolye` ve `siriusgaia`), dördü hariç tutuldu: başka bir markanın (Dilvin) ürünlerini satan bir butik perakendeci, kişilerin eğitim ve kulüp satışı yaptığı üç mağaza "marka değil" olarak listelendi. Ad mağazanın adresinden türetildiği için kabadır (`Emekatolye`).
+
+Ürün adı kuralı (okunan adın başındaki listeli marka) 3 satır daha ekledi: 709 → 712 (%17,7 → %17,8). Üçü de perakendeci olarak hariç tutulan butiğin "Dilvin Marka … Kazak" ürünleridir; aynı butiğin marka adı taşımayan iki ürünü markasız kaldı.
+
+Ürün adımlarının sonundaki durum:
+
+| Son URL | Satır | Yalnızca URL'den | Ürün sayfalarıyla |
+|---|---|---|---|
+| Trendyol | 2269 | 30 (%1,3) | 30 (%1,3) |
+| Hepsiburada | 712 | 285 (%40,0) | 293 (%41,2) |
+| Diğer siteler | 1019 | 375 (%36,8) | 389 (%38,2) |
+| **Toplam** | 4000 | 690 (%17,3) | 712 (%17,8) |
+
+Trendyol'un 4041 ürünü okunamadığı için oradaki oran değişmedi.
+
+`fetch_products` kesintiye karşı da sınandı: Shopier'deki 22 ürünün okunması 9. saniyede kesildi (8 ürün kaydedilmişti), aynı komut kalan 14 ürünle devam etti, üçüncü çalıştırma yapacak iş bulmadı.
+
 **Trendyol henüz okunamadı.** 25 Kasım'daki çözümlemede Trendyol ürün sayfalarının 25'te 17'si 200 dönmüştü. 26 Kasım'da, iki günde üç tam taramanın ardından, Trendyol bu IP'den gelen her isteği (ana sayfa dahil) 403 ile reddetti; `fetch_products --platform trendyol` 5 istekten sonra durdu. Bu yüzden numaradan kurulan adresin (`/x/x-p-{id}`) çalışıp çalışmadığı da henüz sınanamadı. 4041 ürün saniyede bir istekle yaklaşık 70 dakikada taranır; komut engellenmemiş bir ağdan çalıştırılabilir.
 
 ## Marka tespiti ayrıntıları

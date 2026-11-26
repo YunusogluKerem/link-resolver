@@ -65,7 +65,10 @@ class FetchProductsCommandTests(TransactionTestCase):
 
         def handler(request: httpx.Request) -> httpx.Response:
             calls.append(str(request.url))
-            return routes[str(request.url)]
+            answer = routes[str(request.url)]
+            if isinstance(answer, BaseException):
+                raise answer
+            return answer
 
         def fake_client(**kwargs) -> httpx.AsyncClient:
             return httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -131,3 +134,26 @@ class FetchProductsCommandTests(TransactionTestCase):
         self.assertEqual(len(calls), 5)
         self.assertIn("refused 5 times in a row, 4 left untouched", output)
         self.assertEqual(LinkProducts.objects.filter(platform="shopier", status="pending").count(), 4)
+
+    def test_interrupted_run_continues_where_it_stopped(self):
+        Links.objects.all().delete()  # start from an empty table: only these five products
+        urls = [f"https://www.shopier.com/birmagaza/{number}000000" for number in range(21, 26)]
+        for number, url in enumerate(urls, start=21):
+            make_link(number, url)
+        call_command("extract_products", stdout=StringIO())
+        page = httpx.Response(200, html='<meta property="og:title" content="Kazak"/>')
+        routes = {url: page for url in urls}
+        routes[urls[2]] = KeyboardInterrupt()  # Ctrl+C while the third product is being read
+
+        output, calls = self._run(routes, "--platform", "shopier")
+
+        self.assertIn("Interrupted", output)
+        self.assertEqual(calls, urls[:3])
+        self.assertEqual(LinkProducts.objects.filter(status="ok").count(), 2)  # saved before the interruption
+        self.assertEqual(LinkProducts.objects.filter(status="pending").count(), 3)
+
+        routes[urls[2]] = page
+        output, calls = self._run(routes, "--platform", "shopier")
+
+        self.assertEqual(calls, urls[2:])  # only the three that were left
+        self.assertEqual(LinkProducts.objects.filter(status="ok", product_name="Kazak").count(), 5)

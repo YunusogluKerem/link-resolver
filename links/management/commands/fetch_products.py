@@ -47,7 +47,12 @@ class Command(BaseCommand):
         self.stdout.write(f"Fetching {len(targets)} products, one request every {delay:g}s per site...")
 
         started = time.monotonic()
-        counts = asyncio.run(self._run(targets, delay, timeout))
+        try:
+            counts = asyncio.run(self._run(targets, delay, timeout))
+        except KeyboardInterrupt:
+            # Every product is saved as soon as it is read, so nothing fetched is lost.
+            self.stdout.write("\nInterrupted. Run the same command again to continue with the products left.")
+            return
         elapsed = time.monotonic() - started
 
         for (name, status), count in sorted(counts.items()):

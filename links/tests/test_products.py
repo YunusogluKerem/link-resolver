@@ -139,6 +139,15 @@ class ProductBrandsTests(TestCase):
         self.read({ids[1]: "Dove"})
         self.assertEqual(product_brands()[medium.link_id], "Dove")
 
+    def test_product_name_gives_the_brand_when_the_page_states_none(self):
+        LinkProducts.objects.filter(product_id="111").update(status="ok", product_name="Dove Nemlendirici Krem")
+        LinkProducts.objects.filter(product_id="222").update(status="ok", product_name="Mavi Triko Kazak")
+        self.assertEqual(product_brands(), {self.detail.link_id: "Dove"})  # 1 of the 2 read products
+
+    def test_brand_stated_by_the_page_beats_the_product_name(self):
+        LinkProducts.objects.filter(product_id="111").update(status="ok", brand="ELIDOR", product_name="Dove Şampuan")
+        self.assertEqual(product_brands(), {self.detail.link_id: "Elidor"})  # and in the list's spelling
+
     def test_mixed_link_gets_brand_exist_false(self):
         self.read({"111": "Elidor", "222": "Dove", "333": "Signal"})
         LinkDetails.objects.filter(pk=self.detail.pk).update(brand_exist=True, brand_name="Elidor")

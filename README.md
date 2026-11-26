@@ -8,7 +8,7 @@ Stack: Python 3.12, Django 5.2 (LTS), Django REST Framework, simplejwt, httpx (a
 
 - **Veri:** 4000 satır, 3305 benzersiz URL; tamamı yaklaşık 3,5 dakikada çözülür.
 - **Son URL:** satırların %98'inde bulunur (3907 / 4000).
-- **Marka:** satırların %17,3'ünde tespit edilir. Hepsiburada'da %40, Trendyol'da %1,3; nedeni [Bilinen sınırlamalar](#bilinen-sınırlamalar) bölümündedir.
+- **Marka:** yalnızca URL'den satırların %17,3'ünde, ürün sayfaları da okununca %17,8'inde tespit edilir. Hepsiburada'da %41, Trendyol'da %1,3; nedeni [Bilinen sınırlamalar](#bilinen-sınırlamalar) bölümündedir.
 - **Kurulum:** `.env` ve Excel yerine konduktan sonra tek komut: `docker compose up -d`.
 - **API:** yalnızca admin kullanıcıya açık, JWT ile; sayfa başına 1000 kayıt.
 
@@ -51,9 +51,9 @@ Konteyner her açılışta migration'ları uygular ve `.env` içindeki admin kul
 
 `resolve_links` tekrar çalıştırılabilir: yalnızca henüz çözülmemiş linkleri işler, `--force` ile hepsini baştan çözer. Tüm seçenekler: [DESIGN.md](DESIGN.md#resolve_links-seçenekleri).
 
-Ürün bilgisi için sıra: `extract_products`, `fetch_products`, sonra `detect_brands` (ürün sayfasından okunan marka linkin markası olur). `fetch_products` linkleri yeniden çözmez, site başına saniyede bir istek atar ve art arda 5 kez reddedilirse o siteyi bırakır.
+Ürün bilgisi için sıra: `extract_products`, `fetch_products`, sonra `detect_brands` (ürün sayfasının söylediği marka, yoksa ürün adının başındaki marka linkin markası olur). `fetch_products` linkleri yeniden çözmez, site başına saniyede bir istek atar ve art arda 5 kez reddedilirse o siteyi bırakır.
 
-**Trendyol notu:** Trendyol IP bazlı engel uygular; aynı IP'den yapılan yoğun taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz. Engellenmemiş farklı bir ağdan (başka bir çıkış IP'si) çalıştırılabilir: `python manage.py fetch_products --platform trendyol --limit 20`. Ayrıntı: [DESIGN.md](DESIGN.md#ürünler).
+**Trendyol notu:** Trendyol IP bazlı engel uygular; aynı IP'den yapılan yoğun taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz. Engellenmemiş farklı bir ağdan (başka bir çıkış IP'si) çalıştırılabilir: `python manage.py fetch_products --platform trendyol --limit 20`. Tam tarama (`--limit` olmadan) 4041 ürün için saniyede bir istekle yaklaşık 70 dakika sürer; kesilirse aynı komut kaldığı yerden devam eder. Ayrıntı: [DESIGN.md](DESIGN.md#ürünler).
 
 ## API
 

@@ -117,13 +117,13 @@ Bu komut ağa hiç çıkmaz; kayıtlı son URL'ler ve zincirler üzerinden `bran
 
 Kurallar (`links/brands.py`):
 
-0. **Ürün sayfasının söylediği marka:** `fetch_products` linkteki ürünün sayfasından marka okuduysa linkin markası odur; URL'den okunan her şeyin önüne geçer (bkz. [Ürünler](#ürünler)).
+0. **Ürün sayfası:** `fetch_products` linkteki ürünün sayfasını okuduysa önce sayfanın söylediği markaya, o yoksa ürün adının başındaki markaya bakılır (`Dilvin Marka Beyaz Kazak` → `Dilvin`). İkisi de URL'den okunan her şeyin önüne geçer (bkz. [Ürünler](#ürünler)).
 1. **Pazaryeri ürün sayfaları, URL yapısından:**
    - Trendyol `/{marka}/{ürün}-p-{id}`: ilk segment markadır.
    - Hepsiburada `/{slug}-p-{sku}`: slug'ın ilk 1-3 kelimesi marka listesindeyse markadır, değilse marka yok sayılır.
 2. **Pazaryeri mağaza, kampanya ve arama sayfaları:** adın başı marka listesindeyse sayılır (`/magaza/estee-lauder`, `/ara?q=mavi+boxer`). Mağaza adı tek başına marka değildir; `/magaza/og-store` marka sayılmaz.
 3. **Diğer tüm URL'ler:** listedeki bir marka path'te, arama veya kampanya parametresinde ya da sitenin kendi alan adında tam kelime olarak geçiyorsa sayılır (`mac`, `macbook` ile eşleşmez).
-4. **Markanın kendi sitesi:** yukarıdakiler sonuç vermediyse ve site "marka olmayan alan adları" listesinde değilse, site markanın kendi sitesi kabul edilir ve sitenin adı marka sayılır (`www.akcabutik.com` → `Akcabutik`, `de.checkout.gymshark.com` → `Gymshark`). Ad, sayfada varsa `og:site_name` etiketinden, yoksa alan adından gelir.
+4. **Markanın kendi sitesi:** yukarıdakiler sonuç vermediyse ve site "marka olmayan alan adları" listesinde değilse, site markanın kendi sitesi kabul edilir ve sitenin adı marka sayılır (`www.akcabutik.com` → `Akcabutik`, `de.checkout.gymshark.com` → `Gymshark`). Ad, sayfada varsa `og:site_name` etiketinden, yoksa alan adından gelir. Shopier'deki bir mağaza da aynı sayılır: Shopier ortak bir alan adında küçük markaların kendi dükkânlarını barındırır, bu yüzden `shopier.com/{mağaza}/{ürün}` linkinde mağaza adı marka olur (`shopier.com/emekatolye/45116827` → `Emekatolye`). Bir mağazayı dışarıda bırakmak için `non_brand_domains.txt` dosyasına `shopier.com/{mağaza}` satırı eklenir.
 
 **Marka olmayan alan adları da ayrı bir dosyadadır: `links/non_brand_domains.txt`** (pazaryeri, çok markalı perakendeci, sosyal medya, haber, link kısaltıcı ve benzeri bölümler). Dosyaya satır eklemek kod değişikliği gerektirmez. Bölümlerin, satır biçiminin ve marka adının nereden geldiğinin ayrıntısı: [RESULTS.md](RESULTS.md#marka-tespiti-ayrıntıları).
 
@@ -157,6 +157,7 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 - **Her ürün bir kez okunur**, sonuç o ürünü taşıyan tüm satırlara yazılır (4041 Trendyol ürünü 8525 satırda geçer).
 - **Ad ve marka sayfadaki JSON-LD'den** (`"@type": "Product"`) alınır. JSON-LD yoksa ad `og:title`'dan, o da yoksa `<title>`'dan gelir; bu durumda marka boş kalır.
 - **Yavaştır, bilerek:** site başına sırayla, istekler arasında 1 saniye (`--delay`). Bir site art arda 5 kez reddederse o site için durur; kalan ürünler `pending` kalır.
+- **Kesilirse kaldığı yerden devam eder.** Her ürün okunur okunmaz kaydedilir ve komut varsayılan olarak yalnızca `pending` ürünleri işler; Ctrl+C'den sonra aynı komut kalan ürünlerle sürer. Site reddettiği için duran bir çalıştırmada reddedilen ürünler `blocked` olur; onlar `--retry-failed` ile yeniden denenir.
 - **Varsayılan platformlar Hepsiburada ve Shopier'dir.** Trendyol `--platform trendyol` ile istenir. Amazon kapsam dışıdır: düz isteğe ürün yerine bot kontrol sayfası döner.
 - **Seçenekler:** `--platform`, `--delay`, `--limit N`, `--retry-failed` (önceki `blocked` ve `error` sonuçlarını da dener), `--force`, `--timeout`.
 
@@ -168,7 +169,7 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 | `blocked` | Site isteği reddetti (401/403/429) |
 | `error` | Zaman aşımı, 5xx ya da ürün adı olmayan sayfa |
 
-**Ürün markası linkin markası olur.** `detect_brands` (ve `resolve_links`) `link_products.brand` değerini en öncelikli kaynak olarak kullanır. Bir link birden çok ürün taşıyorsa çoğunluk kuralı geçerlidir: sayfası okunan ürünlerin en az yarısı aynı markaysa linkin markası odur; daha karışıksa `brand_exist` `false` olur. Sayfası henüz okunmamış ürünler çoğunluk hesabına katılmaz. Alt sınır: bir linkin ürünlerinin en az 3'ü (ya da %20'si, hangisi küçükse) okunmadıysa ürün markası hiç kullanılmaz ve URL kuralları geçerli kalır; 100 ürünlük bir listeden okunan iki sayfa link adına konuşamaz. Hiçbir ürününde marka okunmamış linklerde de URL kuralları geçerlidir.
+**Ürün markası linkin markası olur.** Öncelik sırası: sayfanın söylediği marka (`link_products.brand`), ürün adı, URL kuralları. Sayfa marka söylemiyorsa (Shopier) okunan `product_name`'in ilk 1-3 kelimesi marka listesindeyse o marka sayılır; Hepsiburada slug'ında kullanılan kuralın aynısıdır. `^` ile işaretli gündelik kelime markaları (Mavi, Eti) ürün adından okunmaz: bir mağazanın "Mavi Triko Kazak"ı mavi bir kazaktır; bu markalar yalnızca pazaryeri URL'sinde, konumlarından tanınır. Ürün adından bulunan marka tabloya yazılmaz, `detect_brands` sırasında hesaplanır; böylece marka listesi değişince sayfaları yeniden okumak gerekmez. `detect_brands` (ve `resolve_links`) bu sonucu en öncelikli kaynak olarak kullanır. Bir link birden çok ürün taşıyorsa çoğunluk kuralı geçerlidir: sayfası okunan ürünlerin en az yarısı aynı markaysa linkin markası odur; daha karışıksa `brand_exist` `false` olur. Sayfası henüz okunmamış ürünler çoğunluk hesabına katılmaz. Alt sınır: bir linkin ürünlerinin en az 3'ü (ya da %20'si, hangisi küçükse) okunmadıysa ürün markası hiç kullanılmaz ve URL kuralları geçerli kalır; 100 ürünlük bir listeden okunan iki sayfa link adına konuşamaz. Hiçbir ürününde marka okunmamış linklerde de URL kuralları geçerlidir.
 
 **Trendyol.** Trendyol IP bazlı engel uygular: aynı IP'den birkaç tam taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz (proxy, tarayıcı taklidi yok); engellenmemiş başka bir ağdan çalıştırılabilir. Sonuçlar ve denemelerin durumu: [RESULTS.md](RESULTS.md#ürün-bilgisi).
 

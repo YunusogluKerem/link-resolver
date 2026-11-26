@@ -8,10 +8,16 @@
 #   youtube.com    that domain and all its subdomains (m.youtube.com)
 #   org            a whole ending: every domain that ends with .org
 #   amazon.*       that name on any ending (amazon.com.tr, amazon.de, link.amazon)
+#   shopier.com/birmagaza   one shop on Shopier (see below)
 #
 # A [section] names the category of the lines below it. Only [marketplace]
 # changes how a URL is read (store names and search text are checked against
 # the brand list); every other section only says "this domain is not a brand".
+#
+# Shopier is listed as a marketplace, but each shop there is one small brand's
+# own storefront: a product link shopier.com/{shop}/{product} counts the shop's
+# name as the brand. To leave a shop out, list it as `shopier.com/{shop}` in a
+# fitting section (for example [not-brand]).
 #
 # The list was built from the hosts seen in the sample data plus well-known
 # sites. It was classified by name, without visiting each site.
@@ -63,6 +69,8 @@ duyumarket.com.tr
 swissnutrition.com
 dailycristina.com
 moonakids.com
+# A boutique on Shopier that sells another brand's clothes (Dilvin).
+shopier.com/miraycollectionn
 # Store chains with their own name on the door are still shops, not product
 # brands; for the same reason they are not in brands.txt.
 sephora.*
@@ -298,6 +306,10 @@ almankurdu.com
 menopozakademisi.net
 sinanhamamsarilar.com
 ezgithedelusional.com
+# Shopier shops of people selling their own courses and clubs, not products.
+shopier.com/kuantumkralice
+shopier.com/yuzyoga_esma
+shopier.com/meliskocal
 
 [gambling]
 # Betting and casino sites.

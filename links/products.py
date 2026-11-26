@@ -17,6 +17,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from urllib.parse import parse_qs, urlsplit
 
+from links.brands import brand_in_product_name, listed_spelling
 from links.models import LinkProducts
 
 Platform = LinkProducts.Platform
@@ -96,7 +97,10 @@ def _platform(host: str) -> str | None:
 
 
 def product_brands() -> dict[int, str]:
-    """link id -> the brand its product pages name, for the links where that can be said.
+    """link id -> the brand its product pages point at, for the links where that can be said.
+
+    A product's brand is what its page states; when the page states none, a
+    listed brand at the start of the product's name ("Dilvin Marka ... Kazak").
 
     A product list can hold several brands. A brand stands for the link only
     when at least half of the link's products that were read carry it; a more
@@ -108,11 +112,12 @@ def product_brands() -> dict[int, str]:
     total: Counter = Counter()  # products per link
     read: Counter = Counter()  # ... of which the page was read
     by_link: dict[int, Counter] = defaultdict(Counter)
-    rows = LinkProducts.objects.order_by("id").values_list("link_id", "status", "brand")
-    for link_id, status, brand in rows:
+    rows = LinkProducts.objects.order_by("id").values_list("link_id", "status", "brand", "product_name")
+    for link_id, status, brand, name in rows:
         total[link_id] += 1
         if status == LinkProducts.FetchStatus.OK:
             read[link_id] += 1
+            brand = listed_spelling(brand) if brand else brand_in_product_name(name)
             if brand:
                 by_link[link_id][brand] += 1
     result = {}

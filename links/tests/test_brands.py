@@ -1,6 +1,8 @@
+from unittest import mock
+
 from django.test import SimpleTestCase
 
-from links.brands import detect_brand, marketplace_brand_id, page_site_name, site_category
+from links.brands import brand_in_product_name, detect_brand, marketplace_brand_id, page_site_name, site_category
 
 
 class DetectBrandTests(SimpleTestCase):
@@ -49,6 +51,47 @@ class DetectBrandTests(SimpleTestCase):
 
     def test_brand_own_domain_counts(self):
         self.assertEqual(detect_brand("https://www.oxxo.com.tr/yeni-sezon"), "Oxxo")
+
+
+class BrandInProductNameTests(SimpleTestCase):
+    def test_listed_brand_at_the_start_of_the_name(self):
+        self.assertEqual(brand_in_product_name("Dilvin Marka Beyaz Yün Karışımlı Kazak"), "Dilvin")
+        self.assertEqual(brand_in_product_name("ESTEE LAUDER Advanced Night Repair Serum 50 ml"), "Estée Lauder")
+
+    def test_brand_later_in_the_name_does_not_count(self):
+        self.assertIsNone(brand_in_product_name("Telefon Kılıfı Samsung Uyumlu"))
+        self.assertIsNone(brand_in_product_name("Siyah Yıldız Payetli Triko Kazak"))
+        self.assertIsNone(brand_in_product_name(""))
+
+    def test_everyday_word_brands_are_not_read_from_a_product_name(self):
+        self.assertIsNone(brand_in_product_name("Mavi Triko Kazak"))  # a blue sweater
+        # ... while a marketplace URL still counts them, by position.
+        self.assertEqual(detect_brand("https://www.hepsiburada.com/mavi-7li-siyah-basic-boxer-p-HBCV0000CJSDY4"), "Mavi")
+
+
+class ShopierShopTests(SimpleTestCase):
+    """A Shopier shop is a small brand's own storefront on a shared domain."""
+
+    def test_shop_name_of_a_product_link_is_the_brand(self):
+        self.assertEqual(detect_brand("https://www.shopier.com/emekatolye/45116827?fbclid=x"), "Emekatolye")
+        self.assertEqual(detect_brand("https://www.shopier.com/bir_atolye/49134604"), "Bir Atolye")
+
+    def test_shops_listed_in_the_file_are_left_out(self):
+        self.assertIsNone(detect_brand("https://www.shopier.com/kuantumkralice/52616801"))  # [not-brand]
+        self.assertIsNone(detect_brand("https://www.shopier.com/miraycollectionn/53352200"))  # [retailer]
+
+    def test_listed_brand_keeps_the_list_spelling(self):
+        self.assertEqual(detect_brand("https://www.shopier.com/estee-lauder/12345678"), "Estée Lauder")
+
+    def test_other_shopier_pages_have_no_brand(self):
+        for url in ("https://www.shopier.com/35900981", "https://www.shopier.com/emekatolye", "https://www.shopier.com/"):
+            self.assertIsNone(detect_brand(url), url)
+
+    def test_shop_listed_as_not_a_brand_is_left_out(self):
+        index = ({"shopier.com": "marketplace"}, {}, {"shopier.com/birkurs": "not-brand"})
+        with mock.patch("links.brands._domain_index", return_value=index):
+            self.assertIsNone(detect_brand("https://www.shopier.com/birkurs/49134604"))
+            self.assertEqual(detect_brand("https://www.shopier.com/emekatolye/45116827"), "Emekatolye")
 
 
 class ProductPageBrandTests(SimpleTestCase):
