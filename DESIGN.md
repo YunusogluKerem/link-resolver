@@ -117,6 +117,7 @@ Bu komut ağa hiç çıkmaz; kayıtlı son URL'ler ve zincirler üzerinden `bran
 
 Kurallar (`links/brands.py`):
 
+0. **Ürün sayfasının söylediği marka:** `fetch_products` linkteki ürünün sayfasından marka okuduysa linkin markası odur; URL'den okunan her şeyin önüne geçer (bkz. [Ürünler](#ürünler)).
 1. **Pazaryeri ürün sayfaları, URL yapısından:**
    - Trendyol `/{marka}/{ürün}-p-{id}`: ilk segment markadır.
    - Hepsiburada `/{slug}-p-{sku}`: slug'ın ilk 1-3 kelimesi marka listesindeyse markadır, değilse marka yok sayılır.
@@ -130,7 +131,48 @@ Aynı zamanda gündelik kelime olan markalar (Mavi, Eti, Yumoş) listede `^` ile
 
 Çözülemeyen linklerde (`link_detail` boş) marka ham linkte aranır.
 
-Tek giriş noktası `detect_brand(url, site_name)` fonksiyonudur. İleride AI tabanlı bir yöntem aynı imzayla bu fonksiyonun yerine konabilir; çözümleyiciye ve API'ye dokunmak gerekmez, `detect_brands` komutu mevcut kayıtları yeniden işaretler.
+Tek giriş noktası `detect_brand(url, site_name, product_brand)` fonksiyonudur. İleride AI tabanlı bir yöntem aynı imzayla bu fonksiyonun yerine konabilir; çözümleyiciye ve API'ye dokunmak gerekmez, `detect_brands` komutu mevcut kayıtları yeniden işaretler.
+
+## Ürünler
+
+Bazı linkler ürün numarası taşır. Bunlar ayrı bir tabloda tutulur, çünkü bir link birden çok ürün taşıyabilir: bir Trendyol ürün listesinde 100'e kadar numara vardır.
+
+**LinkProducts** (`link_products`): `id`, `link_id`, `platform`, `product_id`, `source`, `product_name`, `brand`, `status`, `fetched_at`. `(link_id, platform, product_id)` üçlüsü tekildir.
+
+Numaranın bulunduğu yer (`source`):
+
+| Değer | Nerede | Örnek |
+|---|---|---|
+| `path` | Son URL bir ürün sayfasıdır, numara adresin sonundadır | Trendyol `...-p-1191242708`, Hepsiburada `...-p-HBC00006V9KXM`, Amazon `/dp/B0B4HKNDLQ`, Shopier `/magaza/45116827` |
+| `query` | Son URL bir Trendyol ürün listesidir | `/sr?mid=417967&id=111,222,333` |
+| `chain` | Numara yalnızca zincirdeki uygulama linkinde (`adj.st`) geçer | `ContentIds=111,222`, `sku=HBC...` |
+
+Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `path`, sonra `query`, sonra `chain`.
+
+**`extract_products`** ağa çıkmaz; kayıtlı son URL'leri ve zincirleri okur. Tekrar çalıştırılabilir: eksikleri ekler, kuralın artık bulmadığı satırları siler, okunmuş ürün bilgisine dokunmaz.
+
+**`fetch_products`** ürün sayfasını okur ve `product_name`, `brand`, `status`, `fetched_at` alanlarını doldurur:
+
+- **Linkler yeniden çözülmez.** Adres, kayıtlı son URL'den (takip parametreleri atılarak) alınır. Trendyol listelerinde yalnızca numara olduğu için adres numaradan kurulur (`/x/x-p-{id}`).
+- **Her ürün bir kez okunur**, sonuç o ürünü taşıyan tüm satırlara yazılır (4041 Trendyol ürünü 8525 satırda geçer).
+- **Ad ve marka sayfadaki JSON-LD'den** (`"@type": "Product"`) alınır. JSON-LD yoksa ad `og:title`'dan, o da yoksa `<title>`'dan gelir; bu durumda marka boş kalır.
+- **Yavaştır, bilerek:** site başına sırayla, istekler arasında 1 saniye (`--delay`). Bir site art arda 5 kez reddederse o site için durur; kalan ürünler `pending` kalır.
+- **Varsayılan platformlar Hepsiburada ve Shopier'dir.** Trendyol `--platform trendyol` ile istenir. Amazon kapsam dışıdır: düz isteğe ürün yerine bot kontrol sayfası döner.
+- **Seçenekler:** `--platform`, `--delay`, `--limit N`, `--retry-failed` (önceki `blocked` ve `error` sonuçlarını da dener), `--force`, `--timeout`.
+
+| `status` | Anlamı |
+|---|---|
+| `pending` | Henüz okunmadı |
+| `ok` | Sayfa okundu, ürün adı bulundu |
+| `not_found` | 404, ya da sayfa başka yere yönlendi: ürün kaldırılmış |
+| `blocked` | Site isteği reddetti (401/403/429) |
+| `error` | Zaman aşımı, 5xx ya da ürün adı olmayan sayfa |
+
+**Ürün markası linkin markası olur.** `detect_brands` (ve `resolve_links`) `link_products.brand` değerini en öncelikli kaynak olarak kullanır. Bir link birden çok ürün taşıyorsa çoğunluk kuralı geçerlidir: sayfası okunan ürünlerin en az yarısı aynı markaysa linkin markası odur; daha karışıksa `brand_exist` `false` olur. Sayfası henüz okunmamış ürünler hesaba katılmaz; hiçbir ürününde marka okunmamış linklerde URL kuralları geçerlidir.
+
+**Trendyol.** Trendyol IP bazlı engel uygular: aynı IP'den birkaç tam taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz (proxy, tarayıcı taklidi yok); engellenmemiş başka bir ağdan çalıştırılabilir. Sonuçlar ve denemelerin durumu: [RESULTS.md](RESULTS.md#ürün-bilgisi).
+
+API: `GET /api/link-products/?page=N` (isteğe bağlı `&platform=...`), `link-details` ile aynı sayfalama alanlarıyla; satır başına ek sorgu yoktur.
 
 ## API ayrıntıları
 

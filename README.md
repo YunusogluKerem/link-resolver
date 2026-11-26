@@ -45,9 +45,15 @@ Konteyner her açılışta migration'ları uygular ve `.env` içindeki admin kul
 | `import_links <dosya.xlsx>` | Excel'deki linkleri `Links` tablosuna alır. Tekrar çalıştırılabilir; kayıt çoğaltmaz. |
 | `resolve_links` | Linkleri çözer, sonuçları `LinkDetails` tablosuna yazar. |
 | `detect_brands` | Marka alanlarını ağa çıkmadan yeniden hesaplar (bkz. [DESIGN.md](DESIGN.md#marka-tespiti)). |
+| `extract_products` | Linklerdeki ürün numaralarını `link_products` tablosuna çıkarır; ağa çıkmaz. |
+| `fetch_products` | Ürün sayfalarından ürün adını ve markasını okur (Hepsiburada, Shopier; `--platform trendyol` ile Trendyol). |
 | `ensure_admin` | Ortam değişkenlerinden admin kullanıcıyı yoksa oluşturur. |
 
 `resolve_links` tekrar çalıştırılabilir: yalnızca henüz çözülmemiş linkleri işler, `--force` ile hepsini baştan çözer. Tüm seçenekler: [DESIGN.md](DESIGN.md#resolve_links-seçenekleri).
+
+Ürün bilgisi için sıra: `extract_products`, `fetch_products`, sonra `detect_brands` (ürün sayfasından okunan marka linkin markası olur). `fetch_products` linkleri yeniden çözmez, site başına saniyede bir istek atar ve art arda 5 kez reddedilirse o siteyi bırakır.
+
+**Trendyol notu:** Trendyol IP bazlı engel uygular; aynı IP'den yapılan yoğun taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz. Engellenmemiş farklı bir ağdan (başka bir çıkış IP'si) çalıştırılabilir: `python manage.py fetch_products --platform trendyol --limit 20`. Ayrıntı: [DESIGN.md](DESIGN.md#ürünler).
 
 ## API
 
@@ -91,6 +97,8 @@ curl --compressed "http://localhost:8000/api/link-details/?page=1" \
 
 Her kayıtta ayrıca `link_id`, `content_id`, `brand_name`, `marketplace_brand_id`, `status_code`, `redirect_chain` ve `resolved_at` bulunur. Son sayfada `remaining_pages` `0`, `next` `null` olur. Tam örnek ve notlar: [DESIGN.md](DESIGN.md#api-ayrıntıları).
 
+Linklerdeki ürünler aynı biçimde sayfalanır: `GET /api/link-products/?page=N`, isteğe bağlı `&platform=trendyol`.
+
 ### Güvenlik notu: token ömrü
 
 Görev gereği access token ömrü yaklaşık 4 yıldır (1460 gün). Sızan bir token süresi dolana kadar geçerlidir ve tek tek iptal edilemez; tek çare `DJANGO_SECRET_KEY`'i değiştirmektir. Production'da ömür `JWT_ACCESS_TOKEN_DAYS` ile kısaltılır ve token `POST /api/token/refresh/` ile yenilenir; kod değişikliği gerekmez.
@@ -110,5 +118,5 @@ Görev gereği access token ömrü yaklaşık 4 yıldır (1460 gün). Sızan bir
 
 ## Ayrıntılar
 
-- [DESIGN.md](DESIGN.md): veri modeli, çözümlemenin işleyişi, marka tespiti kuralları, Docker kararları, ortam değişkenleri, ölçeklenme notu.
+- [DESIGN.md](DESIGN.md): veri modeli, çözümlemenin işleyişi, marka tespiti kuralları, ürünler, Docker kararları, ortam değişkenleri, ölçeklenme notu.
 - [RESULTS.md](RESULTS.md): örnek veride sonuçlar ve sınırlamaların uzun açıklamaları.
