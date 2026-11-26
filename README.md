@@ -12,6 +12,8 @@ Stack: Python 3.12, Django 5.2 (LTS), Django REST Framework, simplejwt, httpx (a
 - **Kurulum:** `.env` ve Excel yerine konduktan sonra tek komut: `docker compose up -d`.
 - **API:** yalnızca admin kullanıcıya açık, JWT ile; sayfa başına 1000 kayıt.
 
+Ayrıntılı sonuç tabloları ve sınırlamaların uzun açıklamaları: [RESULTS.md](RESULTS.md).
+
 ## Hızlı başlangıç (Docker)
 
 ```bash
@@ -235,14 +237,9 @@ Kurallar (`links/brands.py`):
    - Hepsiburada `/{slug}-p-{sku}`: slug'ın ilk 1-3 kelimesi marka listesindeyse markadır, değilse marka yok sayılır.
 2. **Pazaryeri mağaza, kampanya ve arama sayfaları:** adın başı marka listesindeyse sayılır (`/magaza/estee-lauder`, `/ara?q=mavi+boxer`). Mağaza adı tek başına marka değildir; `/magaza/og-store` marka sayılmaz.
 3. **Diğer tüm URL'ler:** listedeki bir marka path'te, arama veya kampanya parametresinde ya da sitenin kendi alan adında tam kelime olarak geçiyorsa sayılır (`mac`, `macbook` ile eşleşmez).
-4. **Markanın kendi sitesi:** yukarıdakiler sonuç vermediyse ve site "marka olmayan alan adları" listesinde değilse, site markanın kendi sitesi kabul edilir ve sitenin adı marka sayılır (`www.akcabutik.com` → `Akcabutik`, `de.checkout.gymshark.com` → `Gymshark`).
+4. **Markanın kendi sitesi:** yukarıdakiler sonuç vermediyse ve site "marka olmayan alan adları" listesinde değilse, site markanın kendi sitesi kabul edilir ve sitenin adı marka sayılır (`www.akcabutik.com` → `Akcabutik`, `de.checkout.gymshark.com` → `Gymshark`). Ad, sayfada varsa `og:site_name` etiketinden, yoksa alan adından gelir.
 
-**Marka olmayan alan adları da ayrı bir dosyadadır: `links/non_brand_domains.txt`.** Bölümleri: pazaryeri, çok markalı perakendeci (Boyner, CarrefourSA, iHerb), sosyal medya, haber, link kısaltıcı, link-in-bio, platform (bilet, form, müzik, site kurucu), kurum (`.org`, `.gov.tr`, `.edu.tr`), bahis, elle kontrol edilip marka olmadığı görülen siteler ve "belirsiz". "Belirsiz" bölümünde örnek veride görülen, adından ve URL'sinden ne olduğu anlaşılmayan siteler durur; biri kontrol edene kadar marka sayılmazlar. Perakendecide satılan bir marka URL'de geçiyorsa yine sayılır (`boyner.com.tr/kiko-milano-...` → `KIKO Milano`). Bir satır bir alan adı (`youtube.com`, alt alan adlarıyla), bir uzantı (`org`) veya her uzantıdaki bir ad (`amazon.*`) olabilir. Dosyaya satır eklemek kod değişikliği gerektirmez.
-
-4\. kuralda marka adı iki kaynaktan gelir:
-
-- **`og:site_name`:** çözümleme sırasında son sayfanın zaten okunan ilk 64 KB'ında bu etiket varsa değeri zincirin son adımına `site_name` olarak yazılır (ek istek yoktur). 40 karakterden uzun (slogan) veya alan adının kendisi olan değerler kullanılmaz.
-- **Alan adı:** `site_name` yoksa ad alan adından türetilir; alt alan adı ve uzantı (`com.tr`, `co.uk`) atılır. Ad marka listesinde varsa listedeki yazımı kullanılır (`www2.hm.com` → `H&M`).
+**Marka olmayan alan adları da ayrı bir dosyadadır: `links/non_brand_domains.txt`** (pazaryeri, çok markalı perakendeci, sosyal medya, haber, link kısaltıcı ve benzeri bölümler). Dosyaya satır eklemek kod değişikliği gerektirmez. Bölümlerin, satır biçiminin ve marka adının nereden geldiğinin ayrıntısı: [RESULTS.md](RESULTS.md#marka-tespiti-ayrıntıları).
 
 Aynı zamanda gündelik kelime olan markalar (Mavi, Eti, Yumoş) listede `^` ile işaretlidir ve yalnızca bir pazaryeri adının başında sayılır; `bebe-mavi-kazak` içindeki "mavi" marka değildir.
 
@@ -250,75 +247,20 @@ Aynı zamanda gündelik kelime olan markalar (Mavi, Eti, Yumoş) listede `^` ile
 
 Tek giriş noktası `detect_brand(url, site_name)` fonksiyonudur. İleride AI tabanlı bir yöntem aynı imzayla bu fonksiyonun yerine konabilir; çözümleyiciye ve API'ye dokunmak gerekmez, `detect_brands` komutu mevcut kayıtları yeniden işaretler.
 
-## Örnek veride sonuçlar
-
-Aşağıdaki rakamlar 25 Kasım 2026'da temiz bir Docker ortamında (`docker compose up`, boş volume) alındı: 3305 benzersiz URL 208 saniyede çözüldü (yaklaşık 16 URL/sn, yeniden denemeler dahil).
-
-| Status | Satır | Oran |
-|---|---|---|
-| `ok` | 1502 | %37,6 |
-| `resolved` | 2401 | %60,0 |
-| `blocked` | 79 | %2,0 |
-| `error` | 18 | %0,5 |
-| `timeout` | 0 | %0 |
-
-Tablo, bu çalıştırmanın ve birkaç dakika sonra yapılan bir `resolve_links --retry-failed` çalıştırmasının ardından oluşan durumdur. İlk çalıştırma bittiğinde `blocked` 100 satırdı; 429 alan linklerin bir kısmı sonradan çözüldü.
-
-4000 satırın 3907'sinde son URL bilinir (`link_detail` dolu); 93 satırda ilk istek başarısız olduğu için boştur.
-
-`brand_exist`: 4000 satırın 690'ı (%17,3).
-
-| Son URL | Satır | Marka bulunan | Oran |
-|---|---|---|---|
-| Trendyol | 2269 | 30 | %1,3 |
-| Hepsiburada | 712 | 285 | %40,0 |
-| Diğer siteler | 1019 | 375 | %36,8 |
-| **Toplam** | 4000 | 690 | %17,3 |
-
-"Markanın kendi sitesi" kuralının (4. kural) etkisi, aynı kayıtlar üzerinde `detect_brands` ile ağa çıkmadan ölçüldü:
-
-| Son URL | Kuraldan önce | Kuraldan sonra |
-|---|---|---|
-| Trendyol | 30 (%1,3) | 30 (%1,3) |
-| Hepsiburada | 285 (%40,0) | 285 (%40,0) |
-| Diğer siteler | 28 (%2,7) | 375 (%36,8) |
-| **Toplam** | 343 (%8,6) | 690 (%17,3) |
-
-Daha önce marka bulunan satırlardan yalnızca 4'ü markasını kaybetti, o da bilerek: Sephora bir mağaza zinciri olduğu için marka listesinden çıkarılıp perakendecilere taşındı (Gratis, Watsons ve Rossmann ile birlikte). Başka hiçbir satırın markası değişmedi. "Diğer siteler"deki 1019 satırın dağılımı:
-
-| Kategori | Satır | Marka bulunan |
-|---|---|---|
-| Markanın kendi sitesi (listede olmayan 147 alan adı) | 366 | 366 |
-| Sosyal medya | 199 | 0 |
-| Haber | 123 | 3 |
-| Diğer pazaryerleri (Amazon, Shopier, uygulama mağazaları) | 99 | 0 |
-| Platform (bilet, form, müzik) | 81 | 0 |
-| Çok markalı perakendeci | 57 | 6 |
-| Belirsiz | 30 | 0 |
-| Link-in-bio | 29 | 0 |
-| Link kısaltıcı (yönlendirmesi izlenemeyenler) | 14 | 0 |
-| Elle kontrol edildi, marka değil | 12 | 0 |
-| Kurum | 8 | 0 |
-| Bahis | 1 | 0 |
-
-**Elle kontrol:** 60 alan adlık örnekte (ilk 40 + rastgele 20) doğruluk %77–90 (6 yanlış, 8 belirsiz). Bu ölçüm düzeltmelerden önce yapıldı. Örnek, marka sayılan 153 alan adından satır sayısına göre ilk 40 ile kalanlardan rastgele seçilen 20 alan adıdır; kontrol sitelere girilmeden, yalnızca ada bakılarak yapıldı. Alt sınır belirsizleri yanlış, üst sınır doğru sayar. Bulunan 6 yanlış sonradan listeye işlendi (perakendeci veya "marka değil"); 8 belirsiz olduğu gibi bırakıldı.
-
-**Rakamlar çalıştırmadan çalıştırmaya değişir.** Siteler aynı IP'den gelen tekrarlı taramalara giderek daha sıkı davranır. Aynı gün yapılan daha önceki bir çalıştırmada dağılım `ok` 1679, `resolved` 2256, `blocked` 46 idi. Bir gün sonra (26 Kasım) repodan klonlanarak yapılan çalıştırmada `ok` 1068, `resolved` 2804, `blocked` 108, `error` 20 oldu: Hepsiburada bu kez 711 satırın 540'ında son sayfada 403 döndü. Son URL bu satırlarda yine kaydedildiği için marka oranı neredeyse aynı kaldı (690 → 680 satır, %17,3 → %17,0).
-
 ## Bilinen sınırlamalar
 
-- **Trendyol'da marka adı çoğunlukla URL'de yok, yalnızca ID var.** Trendyol kısa linklerinin yaklaşık %96'sı ürün sayfasına değil, satıcı mağazasına (`/magaza/x-m-123456`) veya ID'lerle tanımlı bir aramaya (`/sr?mid=...`) gider. URL'de ve zincirdeki `adj.st` parametrelerinde sayısal ID'ler bulunur. ID'den isme gitmek için Trendyol sayfasını okumak gerekir; o sayfa da 403 döner. Bir eşleme tablosuyla neyin kazanılacağı ID'nin türüne bağlıdır:
-  - **Marka ID'si (`BrandIds`)** 2266 Trendyol satırının yalnızca 75'inde doludur (%3,3; 30 farklı değer). Bu değerler `marketplace_brand_id` alanında saklanır. Marka ID→isim tablosu Trendyol'daki oranı %1,3'ten en fazla %4,6'ya, genel oranı %17,3'ten %19,1'e çıkarır.
-  - **Satıcı ID'si (`MerchantId`)** satırların yaklaşık %96'sında vardır ve `redirect_chain` içinde durur. Asıl büyük artış satıcı ID→satıcı adı tablosundan gelir; ancak satıcı her zaman marka değildir (resmi marka mağazaları marka sayılır, çok markalı satıcılar sayılmaz).
-- **Marka oranları iyimserdir.** Marka listesi (`links/brands.txt`) bu örnek veride görülen markalarla genişletildi. Daha önce görülmemiş linklerde isabet oranı daha düşük olacaktır; liste elle bakım ister.
-- **"Markanın kendi sitesi" bir varsayımdır.** Listede olmayan her site marka sayılır; yani kural hariç tutulanlar listesi kadar doğrudur. Liste örnek verideki alan adlarından ve bilinen sitelerden derlendi; siteler tek tek ziyaret edilmedi, adlarına bakılarak sınıflandırıldı. Yeni veride listede olmayan bir haber sitesi veya platform yanlışlıkla marka sayılır. Listede olmayan kişisel siteler (bir doktorun, bir eğitmenin, bir sanatçının sitesi) de marka sayılır. Çok markalı perakendeciler ve mağaza zincirleri (Sephora, Gratis, Watsons) sayılmaz. Elle kontrol edilen 60 alan adlık örnekte doğruluk %77–90 çıktı (bkz. "Örnek veride sonuçlar"); ölçüm yalnızca ada bakılarak yapıldı ve kontrol edilmeyen 93 alan adını kapsamaz. Bu yüzden %17,3 bir üst sınır gibi okunmalıdır.
-- **Alan adından türetilen ad kabadır.** Kelimeler ayrılamaz ve Türkçe karakterler geri gelmez: `sedayalcinatelier.com` → `Sedayalcinatelier`. `og:site_name` bunu düzeltir, ama örnek verideki sitelerde nadiren vardır: denenen 14 gerçek sayfanın 3'ünde bulundu, yalnızca 1'i kullanılabilirdi (biri slogan, biri alan adının kendisiydi). Sayfa HTML'i saklanmadığı için mevcut kayıtlarda `site_name` yoktur; bu kayıtlarda ad alan adından gelir. `site_name` bir sonraki `resolve_links` çalıştırmasında dolar.
-- **Bot koruması.** Trendyol son sayfada 403 döner (`resolved`: son URL yine de bilinir). 79 satır ilk istekte reddedildi (`blocked`): 46'sı 401/403 (Passo, Sephora, lnk.bio gibi siteler), 33'ü 429. Koruma aşılmaya çalışılmaz.
-- **Hız sınırı (429).** Bazı siteler aynı IP'den kısa sürede gelen istekleri sınırlar ve 60 saniye beklenmesini ister. Komut bu kadar beklemez (bekleme en fazla 10 sn); sonda bir kez daha dener, yine 429 alırsa satır `blocked` kalır. Bu satırlar bir süre sonra `resolve_links --retry-failed` ile yeniden denenebilir.
-- **JS ile yapılan yönlendirmeler.** Tarayıcı çalıştırılmaz. Yalnızca `meta refresh` ve küçük sayfalardaki düz `location = "..."` kalıpları yakalanır; karmaşık JS yönlendirmeleri kaçar.
-- **Geçici hatalar.** İlk geçişte 43 URL zaman aşımı veya hata ile bitti; komutun sonundaki otomatik ikinci denemede 25'i çözüldü. Kalan 18 `error` kalıcıdır (ölü linkler, WhatsApp'ın 400 döndüğü linkler, bozuk URL'ler).
-- **HTTPS yok.** Servis düz HTTP ile çalışır; bu yerel kullanım içindir. Production'da önüne TLS sonlandıran bir proxy konur ve Django'nun güvenli çerez/HSTS ayarları açılır.
-- **Sonuç ana bağlıdır.** Kısa linkler zamanla başka yere yönlenebilir veya silinebilir; `resolved_at` bu yüzden tutulur.
+Her maddenin rakamları ve uzun açıklaması: [RESULTS.md](RESULTS.md#sınırlamaların-ayrıntısı).
+
+- **Trendyol'da marka adı çoğunlukla URL'de yok, yalnızca ID var.** Trendyol kısa linklerinin yaklaşık %96'sı satıcı mağazasına veya ID'lerle tanımlı bir aramaya gider; Trendyol'daki oran bu yüzden %1,3'tür. Bir marka ID→isim tablosu genel oranı en fazla %19,1'e çıkarır.
+- **Marka oranları iyimserdir.** Marka listesi bu örnek veride görülen markalarla genişletildi; daha önce görülmemiş linklerde isabet daha düşük olur ve liste elle bakım ister.
+- **"Markanın kendi sitesi" bir varsayımdır.** Listede olmayan her site marka sayılır. Elle kontrol edilen 60 alan adlık örnekte doğruluk %77–90 çıktı; bu yüzden %17,3 bir üst sınır gibi okunmalıdır.
+- **Alan adından türetilen ad kabadır.** Kelimeler ayrılamaz ve Türkçe karakterler geri gelmez (`sedayalcinatelier.com` → `Sedayalcinatelier`). `og:site_name` bunu düzeltir, ama sitelerde nadiren bulunur.
+- **Bot koruması.** Trendyol son sayfada 403 döner (son URL yine de bilinir); 79 satır ilk istekte reddedildi. Koruma aşılmaya çalışılmaz.
+- **Hız sınırı (429).** Bazı siteler aynı IP'den kısa sürede gelen istekleri sınırlar. Komut sonda bir kez daha dener; yine 429 alan satır `blocked` kalır ve sonra `resolve_links --retry-failed` ile yeniden denenebilir.
+- **JS ile yapılan yönlendirmeler.** Tarayıcı çalıştırılmaz; yalnızca `meta refresh` ve küçük sayfalardaki düz `location = "..."` kalıpları yakalanır.
+- **Geçici hatalar.** Zaman aşımı ve bağlantı hataları komutun sonunda bir kez daha denenir. Kalan 18 `error` kalıcıdır (ölü linkler, bozuk URL'ler).
+- **HTTPS yok.** Servis düz HTTP ile çalışır; bu yerel kullanım içindir. Production'da önüne TLS sonlandıran bir proxy konur.
+- **Sonuç ana bağlıdır.** Kısa linkler zamanla başka yere yönlenebilir veya silinebilir; `resolved_at` bu yüzden tutulur. Rakamlar çalıştırmadan çalıştırmaya da değişir.
 
 ## Ölçeklenme notu
 
@@ -328,7 +270,7 @@ Bu çözüm 4000 link için tek süreçte, yaklaşık 3-4 dakikada işini bitiri
 - **Kuyruk ve işçiler: Celery (veya benzeri bir kuyruk).** `resolve_links` bugün elle çalışan tek bir komuttur. Büyük hacimde linkler kuyruğa yazılır, birden fazla işçi kuyruktan okur; yeni link geldikçe otomatik çözülür, çöken işçinin işi başkasına geçer. `LinkResolver` sınıfı Django komutundan bağımsızdır, bir Celery görevi içinden aynen çağrılabilir.
 - **Batch işleme.** Bugün "çözülecek linkler" tek seferde belleğe alınır; 4000 satırda sorun değildir. Milyonlarca satırda linkler sayfa sayfa (ör. 10.000'lik gruplar) okunmalı ve her grup ayrı bir iş olmalıdır. Sonuçların 500'lük gruplarla yazılması zaten bu yapıya uygundur.
 - **Domain başına hız sınırı ortak tutulmalı.** Bugünkü limit tek sürecin içindedir. Birden fazla işçi olunca aynı siteye toplamda kaç istek atıldığını ortak bir yerde (ör. Redis) saymak gerekir; yoksa işçi sayısı arttıkça 429 ve engellemeler artar.
-- **Çıkış IP'si.** Yukarıdaki sonuçların gösterdiği gibi, aynı IP'den tekrar tekrar tarama engellenmeyi artırır. Büyük hacimde istekler zamana yayılmalı, tekrar çözümleme aralığı (`resolved_at` üzerinden) planlanmalıdır.
+- **Çıkış IP'si.** [RESULTS.md](RESULTS.md) dosyasındaki sonuçların gösterdiği gibi, aynı IP'den tekrar tekrar tarama engellenmeyi artırır. Büyük hacimde istekler zamana yayılmalı, tekrar çözümleme aralığı (`resolved_at` üzerinden) planlanmalıdır.
 - **API.** 1000'lik sayfa `count` sorgusu ve `OFFSET` kullanır; milyonlarca kayıtta derin sayfalar yavaşlar. O noktada `id` üzerinden ilerleyen (keyset/cursor) sayfalama tercih edilir.
 
 Bunların hiçbiri bu görevin ölçeğinde gerekli değildir; bu yüzden projede Celery, Redis veya Postgres yoktur.
