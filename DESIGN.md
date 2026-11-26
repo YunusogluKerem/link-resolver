@@ -188,21 +188,22 @@ Trendyol linklerinin çoğu bir ürüne değil, bir satıcının mağazasına (`
 **`fetch_stores`** önce ağa çıkmadan linklerdeki satıcıları tabloya yazar (kaç linkin gittiğiyle birlikte), sonra her mağazanın sayfasını bir kez okur:
 
 - **En çok link alan mağazadan başlar**; yarıda kalan bir çalıştırma en çok satırı kapsamış olur.
-- **Sayfadan üç şey alınır:** satıcının adı ve onaylı satıcı işareti (sayfadaki satıcı veri bloğundan), bir de sayfada gösterilen ürünlerin markaları. Sayfalar 0,7–2,8 MB'tır; 20 ürün görülünce okuma kesilir.
+- **Sayfadan üç şey alınır:** satıcının adı ve onaylı satıcı işareti (sayfadaki satıcı veri bloğundan; işaret saklanır ama karara girmez), bir de sayfada gösterilen ürünlerin markaları. Sayfalar 0,7–2,8 MB'tır; 20 ürün görülünce okuma kesilir.
 - **Hız ve dayanıklılık `fetch_products` ile aynıdır:** istekler arasında 2,5 saniye (`--delay`), ret gelince 30 saniye (`--cooldown`), art arda 5 rette durur, her mağaza okunur okunmaz kaydedilir ve komut kaldığı yerden devam eder. HTTP sürümü aynı kuralla seçilir.
 - **Seçenekler:** `--delay`, `--cooldown`, `--limit N`, `--retry-failed`, `--force`, `--timeout`.
 
-**Mağaza ne zaman marka sayılır** (`stores.store_brand`). Mağaza adı tek başına marka değildir; "OG Store" başkalarının ürününü satar. Şu üç durumdan biri varsa sayılır, sırayla bakılır:
+**Mağaza ne zaman marka sayılır** (`stores.store_brand`). Mağaza adı tek başına marka değildir; "OG Store" başkalarının ürününü satar. Şu iki durumdan biri varsa sayılır, sırayla bakılır:
 
 | Kural | Koşul | Marka adı |
 |---|---|---|
 | `listed` | Mağaza adı marka listesindeki bir markayla başlar (`Koton`) | Listedeki yazım |
-| `products` | Sayfadaki ürünlerin en az yarısı tek markadır ve mağaza o markanın adıyla başlar (`VICTORIA'S SECRET` → Victoria's Secret) | Ürünlerdeki yazım |
-| `verified` | Trendyol satıcıyı onaylı olarak işaretlemiştir ("Onaylanmış Satıcı" rozeti) | Mağazanın adı |
+| `products` | Sayfadaki ürünlerin en az yarısı tek markadır ve mağazanın adı ile o marka aynı adı taşır | Ürünlerdeki yazım |
+
+"Aynı ad" esnek karşılaştırılır (`brands.same_name`): büyük/küçük harf, boşluk, noktalama ve Türkçe karakter farkı sayılmaz, ve biri diğerinin uzun hali olabilir (`FRESH SCARFS` ~ `Freshscarfs`, `StopForte` ~ `STOP Forte`, `Kyza` ~ `kyza skin`). Üç harften kısa adlar karşılaştırılmaz.
 
 Karar tabloya yazılmaz, `detect_brands` sırasında hesaplanır; kural ya da marka listesi değişince sayfaları yeniden okumak gerekmez. Mağaza markası son kaynaktır: ürün sayfasının söylediği marka ve URL'nin adını verdiği marka önce gelir.
 
-`verified` en zayıf kuraldır: rozet markanın kendisine olduğu kadar yetkili satıcılarına da verilir, bu durumda bir distribütörün adı marka olarak yazılır. Sonuçlar ve elle kontrol: [RESULTS.md](RESULTS.md#mağaza-sayfaları).
+**Onaylı satıcı işareti kullanılmaz.** Trendyol'un "Onaylanmış Satıcı" rozeti `verified` alanında saklanır, ama karara girmez. İlk sürümde üçüncü kuraldı; elle kontrolde rozetin birkaç markayı satan yetkili satıcılara da verildiği görüldü (P&G Türkiye, Watsons, SaatveSaat), bu durumda mağazanın adı marka değildir. Sonuçlar ve elle kontrol: [RESULTS.md](RESULTS.md#mağaza-sayfaları).
 
 ## API ayrıntıları
 

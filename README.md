@@ -8,7 +8,7 @@ Stack: Python 3.12, Django 5.2 (LTS), Django REST Framework, simplejwt, httpx (a
 
 - **Veri:** 4000 satır, 3305 benzersiz URL; tamamı yaklaşık 3,5 dakikada çözülür.
 - **Son URL:** satırların %98'inde bulunur (3907 / 4000).
-- **Marka:** satırların %67'sinde tespit edilir (2682 / 4000): Trendyol'da %88, Hepsiburada'da %41. Yalnızca URL'den %17,3 idi; artış Trendyol mağaza sayfalarının okunmasından gelir ([RESULTS.md](RESULTS.md#mağaza-sayfaları)).
+- **Marka:** satırların %65'inde tespit edilir (2602 / 4000): Trendyol'da %85, Hepsiburada'da %41. Yalnızca URL'den %17,3 idi; artış Trendyol mağaza sayfalarının okunmasından gelir ([RESULTS.md](RESULTS.md#mağaza-sayfaları)).
 - **Kurulum:** `.env` ve Excel yerine konduktan sonra tek komut: `docker compose up -d`.
 - **API:** yalnızca admin kullanıcıya açık, JWT ile; sayfa başına 1000 kayıt.
 
@@ -45,7 +45,7 @@ Konteyner her açılışta migration'ları uygular ve `.env` içindeki admin kul
 | `import_links <dosya.xlsx>` | Excel'deki linkleri `Links` tablosuna alır. Tekrar çalıştırılabilir; kayıt çoğaltmaz. |
 | `resolve_links` | Linkleri çözer, sonuçları `LinkDetails` tablosuna yazar. |
 | `detect_brands` | Marka alanlarını ağa çıkmadan yeniden hesaplar (bkz. [DESIGN.md](DESIGN.md#marka-tespiti)). |
-| `fetch_stores` | Linklerin gittiği Trendyol satıcılarının mağaza sayfasını okur: ad, onaylı satıcı işareti, ürün markaları. |
+| `fetch_stores` | Linklerin gittiği Trendyol satıcılarının mağaza sayfasını okur: mağazanın adı ve sattığı ürünlerin markaları. |
 | `extract_products` | Linklerdeki ürün numaralarını `link_products` tablosuna çıkarır; ağa çıkmaz. |
 | `fetch_products` | Ürün sayfalarından ürün adını ve markasını okur (Hepsiburada, Shopier; `--platform trendyol` ile Trendyol). |
 | `ensure_admin` | Ortam değişkenlerinden admin kullanıcıyı yoksa oluşturur. |
@@ -106,7 +106,7 @@ Görev gereği access token ömrü yaklaşık 4 yıldır (1460 gün). Sızan bir
 
 ## Bilinen sınırlamalar
 
-- **Trendyol'da marka mağazadan gelir.** Linklerin çoğu ürüne değil satıcı mağazasına gider; bulunan marka mağazanın markasıdır, içerikte gösterilen ürünün değil. Yalnızca onaylı satıcı işaretine dayanan 68 mağaza (169 satır) en zayıf halkadır.
+- **Trendyol'da marka mağazadan gelir.** Linklerin çoğu ürüne değil satıcı mağazasına gider; bulunan marka mağazanın markasıdır, içerikte gösterilen ürünün değil. Elle kontrol edilen 30 mağazalık örnekte marka sayılanların yaklaşık %87'si doğruydu.
 - **Marka oranları iyimserdir.** Marka listesi bu örnek veride görülen markalarla genişletildi; yeni veride isabet daha düşük olur.
 - **"Markanın kendi sitesi" bir varsayımdır.** Listede olmayan her site marka sayılır; elle kontrol edilen 60 alan adında doğruluk %77–90 çıktı.
 - **Alan adından türetilen ad kabadır.** Kelimeler ayrılamaz ve Türkçe karakterler geri gelmez (`sedayalcinatelier.com` → `Sedayalcinatelier`).

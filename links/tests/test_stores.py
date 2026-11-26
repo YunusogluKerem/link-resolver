@@ -50,23 +50,40 @@ class ParseStoreTests(SimpleTestCase):
 
 class StoreBrandTests(SimpleTestCase):
     def test_store_named_after_a_listed_brand(self):
-        self.assertEqual(store_brand("Koton", False, {}), ("Koton", "listed"))
-        self.assertEqual(store_brand("ESTEE LAUDER Türkiye", False, {}), ("Estée Lauder", "listed"))
+        self.assertEqual(store_brand("Koton", {}), ("Koton", "listed"))
+        self.assertEqual(store_brand("ESTEE LAUDER Türkiye", {}), ("Estée Lauder", "listed"))
 
     def test_store_named_after_the_brand_of_its_products(self):
         products = {"Yves Saint Laurent": 71, "Lancôme": 2}
-        self.assertEqual(store_brand("YVES SAINT LAURENT BEAUTY", False, products), ("Yves Saint Laurent", "products"))
+        self.assertEqual(store_brand("YVES SAINT LAURENT BEAUTY", products), ("Yves Saint Laurent", "products"))
 
-    def test_verified_store_counts_under_its_own_name(self):
-        self.assertEqual(store_brand("Örnek Kozmetik", True, {}), ("Örnek Kozmetik", "verified"))
+    def test_spelling_differences_between_store_and_brand_are_ignored(self):
+        cases = {
+            "FRESH SCARFS": "Freshscarfs",  # spaces and case
+            "StopForte": "STOP Forte",
+            "Rozas Home": "Roza's Home",  # punctuation
+            "HİROSH": "HİROS'H",  # Turkish letters
+            "Kyza": "kyza skin",  # the brand is a longer form of the store's name
+            "Dilay Gökoğlu": "Dilay Gökoğlu Butik",
+        }
+        for store, brand in cases.items():
+            self.assertEqual(store_brand(store, {brand: 12, "Başka": 3}), (brand, "products"), store)
 
     def test_store_name_alone_is_not_a_brand(self):
-        self.assertEqual(store_brand("OG Store", False, {}), (None, ""))
-        # One brand on the shelves is not enough: the store is not named after it.
-        self.assertEqual(store_brand("Moda Dükkanı", False, {"Koton": 20}), (None, ""))
-        # Named after a brand that is a small part of what it sells.
-        self.assertEqual(store_brand("Rowenta Outlet", False, {"English Home": 52, "Rowenta": 3}), (None, ""))
-        self.assertEqual(store_brand("", True, {"Koton": 5}), (None, ""))
+        self.assertEqual(store_brand("OG Store", {}), (None, ""))
+        # One brand on the shelves is not enough: the store does not share its name.
+        self.assertEqual(store_brand("Moda Dükkanı", {"Koton": 20}), (None, ""))
+        self.assertEqual(store_brand("ARMANI BEAUTY", {"Giorgio Armani": 19, "Emporio Armani": 3}), (None, ""))
+        # Shares a name with a brand that is a small part of what it sells.
+        self.assertEqual(store_brand("Rowenta Outlet", {"English Home": 52, "Rowenta": 3}), (None, ""))
+        # Two letters are inside almost any name.
+        self.assertEqual(store_brand("By", {"Bybutik": 9}), (None, ""))
+        self.assertEqual(store_brand("", {"Koton": 5}), (None, ""))
+
+    def test_verified_mark_alone_does_not_make_a_brand(self):
+        name, verified, product_brands = parse_store(store_page("Çok Markalı Satıcı", ["A", "B", "C"], verified=True))
+        self.assertTrue(verified)
+        self.assertEqual(store_brand(name, product_brands), (None, ""))
 
 
 def make_link(content_id: int, final_url: str) -> LinkDetails:
@@ -87,7 +104,7 @@ class FetchStoresCommandTests(TransactionTestCase):
         make_link(4, "https://www.trendyol.com/magaza/x-m-30?utm_campaign=elidor_ornek_AbC12")
         make_link(5, "https://www.youtube.com/watch?v=abc")
         self.routes = {
-            "https://www.trendyol.com/magaza/x-m-20": httpx.Response(200, html=store_page("Örnek Marka", [], True)),
+            "https://www.trendyol.com/magaza/x-m-20": httpx.Response(200, html=store_page("ÖRNEK MARKA", ["Örnek Marka"] * 3)),
             "https://www.trendyol.com/magaza/x-m-10": httpx.Response(200, html=store_page("OG Store", ["A", "B"])),
             "https://www.trendyol.com/magaza/x-m-30": httpx.Response(200, html=store_page("Toptancı", [], True)),
         }
@@ -121,7 +138,7 @@ class FetchStoresCommandTests(TransactionTestCase):
         self.assertEqual(calls[0], "https://www.trendyol.com/magaza/x-m-20")  # two links point at it
         self.assertEqual(len(calls), 3)
         store = Stores.objects.get(seller_id="20")
-        self.assertEqual((store.name, store.verified, store.link_count, store.status), ("Örnek Marka", True, 2, "ok"))
+        self.assertEqual((store.name, store.verified, store.link_count, store.status), ("ÖRNEK MARKA", False, 2, "ok"))
 
         output, calls = self._run()
         self.assertIn("Nothing to read", output)

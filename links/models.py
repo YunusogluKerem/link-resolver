@@ -145,6 +145,7 @@ class Stores(models.Model):
 
     # --- read from the store page ---
     name = models.CharField(max_length=200, blank=True, default="")
+    # Kept as a fact about the store; not used to decide the brand (see stores.store_brand).
     verified = models.BooleanField(default=False, help_text="The page carries the marketplace's verified-seller mark")
     product_brands = models.JSONField(default=dict, blank=True, help_text="Brands of the products shown on the page, with counts")
     status = models.CharField(

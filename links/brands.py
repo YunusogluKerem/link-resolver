@@ -47,6 +47,8 @@ TEXT_PARAMS = ("q", "utm_campaign")
 
 # A name starts with the brand, and a brand is at most this many words.
 MAX_BRAND_WORDS = 3
+# Shortest name `same_name` will compare.
+MIN_SAME_NAME_LENGTH = 3
 
 _TRENDYOL_PRODUCT = re.compile(r"-p-\d+$")
 _TRENDYOL_BRAND_PAGE = re.compile(r"^(.+)-x-b\d+$")
@@ -137,10 +139,16 @@ def brand_in_store_name(name: str) -> str | None:
     return _brand_at_start(_tokens(name))
 
 
-def name_starts_with(name: str, brand: str) -> bool:
-    """"YVES SAINT LAURENT BEAUTY" starts with "Yves Saint Laurent": case, accents and punctuation are ignored."""
-    words, brand_words = _tokens(name), _tokens(brand)
-    return bool(brand_words) and words[: len(brand_words)] == brand_words
+def same_name(name: str, other: str) -> bool:
+    """Do two spellings name the same thing?
+
+    Case, spaces, punctuation and Turkish letters are ignored, and one may be a
+    longer form of the other: "FRESH SCARFS" ~ "Freshscarfs", "Kyza" ~ "kyza skin",
+    "Dilay Gökoğlu" ~ "Dilay Gökoğlu Butik". Very short names never match:
+    two letters are inside almost anything.
+    """
+    a, b = "".join(_tokens(name)), "".join(_tokens(other))
+    return min(len(a), len(b)) >= MIN_SAME_NAME_LENGTH and (a in b or b in a)
 
 
 def listed_spelling(name: str) -> str:

@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from links.brands import brand_in_store_name, listed_spelling, name_starts_with
+from links.brands import brand_in_store_name, listed_spelling, same_name
 from links.models import LinkProducts, Stores
 from links.resolver import BLOCKED_CODES, http2_refused
 
@@ -71,16 +71,18 @@ def store_url(seller: str) -> str:
     return f"https://www.trendyol.com/magaza/x-m-{seller}"
 
 
-def store_brand(name: str, verified: bool, product_brands: dict) -> tuple[str | None, str]:
+def store_brand(name: str, product_brands: dict) -> tuple[str | None, str]:
     """Is this store a brand's own? Returns (brand, why) or (None, "").
 
     A store name alone is not a brand: a seller called "OG Store" sells other
     people's products. It counts when one of these says so:
       listed    the name starts with a brand from brands.txt ("Koton");
-      products  the products on its page carry one brand, and the store is
-                named after it ("VICTORIA'S SECRET" sells Victoria's Secret);
-      verified  Trendyol marks the seller as verified (its "Onaylanmış Satıcı"
-                badge, given to brands and their authorised sellers).
+      products  most products on its page carry one brand, and the store and
+                that brand share a name ("VICTORIA'S SECRET" sells Victoria's
+                Secret; "FRESH SCARFS" sells Freshscarfs).
+
+    Trendyol's verified-seller mark is stored but not used: it is also given to
+    authorised sellers of several brands, whose name is not a brand.
     """
     name = " ".join(name.split())
     if not name:
@@ -92,10 +94,8 @@ def store_brand(name: str, verified: bool, product_brands: dict) -> tuple[str | 
     total = sum(product_brands.values())
     if total:
         brand, count = max(product_brands.items(), key=lambda item: item[1])
-        if count >= total * ONE_BRAND_SHARE and name_starts_with(name, brand):
+        if count >= total * ONE_BRAND_SHARE and same_name(name, brand):
             return listed_spelling(brand), "products"
-    if verified:
-        return name, "verified"
     return None, ""
 
 
@@ -103,7 +103,7 @@ def store_brands() -> dict[str, str]:
     """seller id -> brand, for the stores that were read and are a brand's own."""
     result = {}
     for store in Stores.objects.filter(status=Status.OK):
-        brand, _why = store_brand(store.name, store.verified, store.product_brands)
+        brand, _why = store_brand(store.name, store.product_brands)
         if brand:
             result[store.seller_id] = brand
     return result

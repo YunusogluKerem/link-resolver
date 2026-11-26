@@ -131,18 +131,44 @@ Bu denemeden sonra komut değişti: ret alınca 30 saniye bekler, ürünleri lin
 
 Daha önce marka bulunan hiçbir satırın markası değişmedi; mağaza markası yalnızca boş olanları doldurur. "Diğer siteler"deki 3 satır, son URL'si Trendyol olmayan ama zincirinde satıcı numarası taşıyan linklerdir.
 
-Mağazaların hangi kuralla marka sayıldığı:
+Bu ilk çalıştırmada üç kural vardı; mağazaların hangi kuralla marka sayıldığı:
 
 | Kural | Mağaza | Link satırı |
 |---|---|---|
 | Ad marka listesinde (`listed`) | 65 | 834 |
-| Ürünleri tek marka, mağaza o adı taşıyor (`products`) | 383 | 985 |
+| Ürünleri tek marka, mağaza o adla başlıyor (`products`) | 383 | 985 |
 | Yalnızca onaylı satıcı işareti (`verified`) | 68 | 169 |
 | Marka sayılmadı | 82 | 165 |
 
-598 mağazanın 395'i onaylı satıcıdır. Marka sayılmayan 82 mağazanın hiçbiri onaylı değildir; 67'sinde ürünlerin çoğu tek markadır ama mağazanın adı o markadan farklıdır. Bunların 18'i (38 satır) yalnızca yazım farkıdır (`StopForte` / `STOP Forte`, `FRESH SCARFS` / `Freshscarfs`); kural bunları şimdilik saymaz.
+598 mağazanın 395'i onaylı satıcıdır.
 
-Bu sonuçlar henüz elle doğrulanmadı. En zayıf grup yalnızca işarete dayanan 68 mağazadır: örneklerde bir markanın kendi mağazası (`ARMANI BEAUTY`) olduğu kadar, birkaç markayı satan onaylı satıcılar (`boomglobal`, `Çiçekburada`) da vardır.
+### Elle kontrol ve kuralın değişmesi
+
+30 mağazalık örnek elle kontrol edildi (bu ölçüm aşağıdaki değişiklikten önce yapıldı):
+
+- **Marka sayılan 15 mağazada** (her kuraldan 5'er, rastgele) 2 yanlış çıktı: doğruluk yaklaşık %87. İkisi de yalnızca onaylı satıcı işaretiyle sayılmıştı: birkaç markayı satan `boomglobal` ve başka bir markanın ürünlerini satan `Çiçekburada`.
+- **Marka sayılmayan 15 mağazada** (en çok link alan 8 + rastgele 7) 4 kaçan marka vardı: `StopForte`, `FRESH SCARFS`, `Kyza`, `VAGON TOYS`. Dördü de kendi markasını satıyor, ama mağaza adı ile ürünlerdeki marka farklı yazılmıştı.
+
+Bunun üzerine kural değişti: onaylı satıcı işareti kuraldan çıkarıldı, `products` kuralındaki ad karşılaştırması esnek hale getirildi (büyük/küçük harf, boşluk, noktalama, Türkçe karakter farkı sayılmaz; adlardan biri diğerini içerebilir).
+
+| Son URL | Satır | Üç kuralla | İki kuralla |
+|---|---|---|---|
+| Trendyol | 2269 | 1997 (%88) | 1919 (%85) |
+| Hepsiburada | 712 | 293 (%41,2) | 293 (%41,2) |
+| Diğer siteler | 1019 | 392 (%38,5) | 390 (%38,3) |
+| **Toplam** | 4000 | 2682 (%67,1) | 2602 (%65,1) |
+
+| Kural | Mağaza | Link satırı |
+|---|---|---|
+| Ad marka listesinde (`listed`) | 65 | 834 |
+| Ürünleri tek marka, mağaza aynı adı taşıyor (`products`) | 427 | 1070 |
+| Marka sayılmadı | 106 | 249 |
+
+- **İşaret kalkınca 43 mağaza (125 satır) düştü.** Çoğu çok markalı satıcıdır ve düşmesi doğrudur: `P&G Türkiye`, `SaatveSaat`, `ebebek`, `Watsons`, `Rossmann`, `Unilever`, `SuperStep`, `A101 Ekstra`, `Trendyol`. Aralarında markanın kendi mağazası olup adı ürün markasıyla eşleşmeyenler de vardır: `ARMANI BEAUTY` (ürünlerde "Giorgio Armani", 12 satır), `Katia and Bony` (ürünlerde "Katia&Bony", 7 satır), `Marks and Spencer` (ürünlerde "Marks & Spencer").
+- **Esnek eşleşmeyle 44 mağaza (85 satır) geldi:** 19'u daha önce hiç sayılmıyordu (`StopForte`, `FRESH SCARFS`, `Kyza`, `VAGON TOYS` dahil), 25'i yalnızca işaretle sayılıyordu ve artık ürün markasının adıyla yazılıyor (`SkinSensual` → Skin Sensual, `Civil` → Civil Baby).
+- **Esnek eşleşmenin bir yan etkisi:** elle kontrolde yanlış bulunan `boomglobal`, ürünlerinin çoğu "BOOM" markası olduğu ve mağaza adı bu markayı içerdiği için yeniden, bu kez "BOOM" olarak sayılıyor. "ve" ile "&" farkı ise hâlâ eşleşmiyor (`Katia and Bony`).
+
+İki kurallı sonuç ayrıca elle doğrulanmadı.
 
 ## Marka tespiti ayrıntıları
 
@@ -157,9 +183,9 @@ Kuralların kendisi [DESIGN.md](DESIGN.md#marka-tespiti) dosyasındadır.
 
 ## Sınırlamaların ayrıntısı
 
-- **Trendyol'da marka adı URL'de yok, yalnızca ID var.** Trendyol kısa linklerinin yaklaşık %96'sı ürün sayfasına değil, satıcı mağazasına (`/magaza/x-m-123456`) veya ID'lerle tanımlı bir aramaya (`/sr?mid=...`) gider. İlk çözümde bu sayfalar okunamadı (HTTP/2 isteklerine 403) ve oran %1,3'te kaldı. Sayfaların HTTP/1.1 ile okunabildiği görülünce satıcı adı mağaza sayfasından alındı (bkz. "Mağaza sayfaları"); oran %88'e çıktı. Kalan sınırlar:
+- **Trendyol'da marka adı URL'de yok, yalnızca ID var.** Trendyol kısa linklerinin yaklaşık %96'sı ürün sayfasına değil, satıcı mağazasına (`/magaza/x-m-123456`) veya ID'lerle tanımlı bir aramaya (`/sr?mid=...`) gider. İlk çözümde bu sayfalar okunamadı (HTTP/2 isteklerine 403) ve oran %1,3'te kaldı. Sayfaların HTTP/1.1 ile okunabildiği görülünce satıcı adı mağaza sayfasından alındı (bkz. "Mağaza sayfaları"); oran %85'e çıktı. Kalan sınırlar:
   - **Bulunan marka mağazanın markasıdır.** İçerikte gösterilen ürünün markası değil, linkin gittiği satıcının markası yazılır; çok markalı bir satıcıda bu ikisi farklı olabilir.
-  - **Onaylı satıcı işareti "resmi marka mağazası" demek değildir.** Rozet yetkili satıcılara da verilir; yalnızca işarete dayanan 68 mağazada (169 satır) mağazanın adı marka olarak yazılır.
+  - **Mağaza adı ile ürün markası eşleşmeyince marka kaçar.** `ARMANI BEAUTY` "Giorgio Armani" satar, `Katia and Bony` "Katia&Bony"; bunlar marka sayılmaz. Onaylı satıcı işareti bu boşluğu doldurmak için kullanılamaz, çünkü çok markalı yetkili satıcılara da verilir.
   - **Marka ID'si (`BrandIds`)** 2266 Trendyol satırının 75'inde doludur ve `marketplace_brand_id` alanında saklanır; bir ID→isim tablosu olmadığı için kullanılmaz.
 - **Marka oranları iyimserdir.** Marka listesi (`links/brands.txt`) bu örnek veride görülen markalarla genişletildi. Daha önce görülmemiş linklerde isabet oranı daha düşük olacaktır; liste elle bakım ister.
 - **"Markanın kendi sitesi" bir varsayımdır.** Listede olmayan her site marka sayılır; yani kural hariç tutulanlar listesi kadar doğrudur. Liste örnek verideki alan adlarından ve bilinen sitelerden derlendi; siteler tek tek ziyaret edilmedi, adlarına bakılarak sınıflandırıldı. Yeni veride listede olmayan bir haber sitesi veya platform yanlışlıkla marka sayılır. Listede olmayan kişisel siteler (bir doktorun, bir eğitmenin, bir sanatçının sitesi) de marka sayılır. Çok markalı perakendeciler ve mağaza zincirleri (Sephora, Gratis, Watsons) sayılmaz. Elle kontrol edilen 60 alan adlık örnekte doğruluk %77–90 çıktı (bkz. yukarıda "Elle kontrol"); ölçüm yalnızca ada bakılarak yapıldı ve kontrol edilmeyen 93 alan adını kapsamaz. Bu yüzden %17,3 bir üst sınır gibi okunmalıdır.
