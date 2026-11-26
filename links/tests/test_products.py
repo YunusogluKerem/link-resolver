@@ -115,9 +115,29 @@ class ProductBrandsTests(TestCase):
         self.read({"111": "Elidor", "222": "", "333": ""})
         self.assertEqual(product_brands(), {self.detail.link_id: ""})
 
-    def test_products_not_read_yet_are_left_out(self):
-        self.read({"111": "Elidor"})  # 222 and 333 are still pending
+    def test_products_not_read_yet_are_left_out_of_the_majority(self):
+        self.read({"111": "Elidor"})  # 222 and 333 are still pending; 1 of 3 read is enough for a small link
         self.assertEqual(product_brands(), {self.detail.link_id: "Elidor"})
+
+    def test_too_few_products_read_leaves_the_link_to_the_url_rules(self):
+        ids = [str(number) for number in range(1001, 1021)]  # 20 products: 3 must be read
+        big = make_detail(3, "https://www.trendyol.com/sr/?mid=968&id=" + ",".join(ids))
+        call_command("extract_products", stdout=StringIO())
+
+        self.read({ids[0]: "Elidor", ids[1]: "Elidor"})
+        self.assertNotIn(big.link_id, product_brands())
+        self.read({ids[2]: "Elidor"})
+        self.assertEqual(product_brands()[big.link_id], "Elidor")
+
+    def test_small_link_needs_a_fifth_of_its_products(self):
+        ids = [str(number) for number in range(2001, 2011)]  # 10 products: 2 must be read
+        medium = make_detail(4, "https://www.trendyol.com/sr/?mid=968&id=" + ",".join(ids))
+        call_command("extract_products", stdout=StringIO())
+
+        self.read({ids[0]: "Dove"})
+        self.assertNotIn(medium.link_id, product_brands())
+        self.read({ids[1]: "Dove"})
+        self.assertEqual(product_brands()[medium.link_id], "Dove")
 
     def test_mixed_link_gets_brand_exist_false(self):
         self.read({"111": "Elidor", "222": "Dove", "333": "Signal"})

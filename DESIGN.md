@@ -168,7 +168,7 @@ Aynı numara birden çok yerde geçiyorsa en doğrudan kaynak yazılır: önce `
 | `blocked` | Site isteği reddetti (401/403/429) |
 | `error` | Zaman aşımı, 5xx ya da ürün adı olmayan sayfa |
 
-**Ürün markası linkin markası olur.** `detect_brands` (ve `resolve_links`) `link_products.brand` değerini en öncelikli kaynak olarak kullanır. Bir link birden çok ürün taşıyorsa çoğunluk kuralı geçerlidir: sayfası okunan ürünlerin en az yarısı aynı markaysa linkin markası odur; daha karışıksa `brand_exist` `false` olur. Sayfası henüz okunmamış ürünler hesaba katılmaz; hiçbir ürününde marka okunmamış linklerde URL kuralları geçerlidir.
+**Ürün markası linkin markası olur.** `detect_brands` (ve `resolve_links`) `link_products.brand` değerini en öncelikli kaynak olarak kullanır. Bir link birden çok ürün taşıyorsa çoğunluk kuralı geçerlidir: sayfası okunan ürünlerin en az yarısı aynı markaysa linkin markası odur; daha karışıksa `brand_exist` `false` olur. Sayfası henüz okunmamış ürünler çoğunluk hesabına katılmaz. Alt sınır: bir linkin ürünlerinin en az 3'ü (ya da %20'si, hangisi küçükse) okunmadıysa ürün markası hiç kullanılmaz ve URL kuralları geçerli kalır; 100 ürünlük bir listeden okunan iki sayfa link adına konuşamaz. Hiçbir ürününde marka okunmamış linklerde de URL kuralları geçerlidir.
 
 **Trendyol.** Trendyol IP bazlı engel uygular: aynı IP'den birkaç tam taramadan sonra ana sayfa dahil her isteğe 403 döner. Komut engeli aşmaya çalışmaz (proxy, tarayıcı taklidi yok); engellenmemiş başka bir ağdan çalıştırılabilir. Sonuçlar ve denemelerin durumu: [RESULTS.md](RESULTS.md#ürün-bilgisi).
 

@@ -11,6 +11,7 @@ A link shows its products in one of three places:
 read from the product pages to brand detection.
 """
 
+import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -37,6 +38,11 @@ _CHAIN_PARAMS = {
     "productId": Platform.HEPSIBURADA,
 }
 _DEEP_LINK_HOST = "adj.st"
+
+# Product brands speak for a link once this many of its products were read:
+# 3, or a fifth of them when the link has fewer than 15 (whichever is smaller).
+MIN_READ = 3
+MIN_READ_SHARE = 0.2
 _VALID_ID = re.compile(r"[A-Za-z0-9]{1,64}")
 
 
@@ -90,21 +96,30 @@ def _platform(host: str) -> str | None:
 
 
 def product_brands() -> dict[int, str]:
-    """link id -> the brand its product pages name, for links whose pages named any brand.
+    """link id -> the brand its product pages name, for the links where that can be said.
 
     A product list can hold several brands. A brand stands for the link only
     when at least half of the link's products that were read carry it; a more
     mixed link maps to "", which brand detection reads as "no brand".
+
+    A link with too few products read (see MIN_READ) is left out altogether:
+    two pages out of a hundred do not speak for the link, so the URL rules apply.
     """
-    read: Counter = Counter()  # products whose page was read, per link
+    total: Counter = Counter()  # products per link
+    read: Counter = Counter()  # ... of which the page was read
     by_link: dict[int, Counter] = defaultdict(Counter)
-    rows = LinkProducts.objects.filter(status=LinkProducts.FetchStatus.OK).order_by("id")
-    for link_id, brand in rows.values_list("link_id", "brand"):
-        read[link_id] += 1
-        if brand:
-            by_link[link_id][brand] += 1
+    rows = LinkProducts.objects.order_by("id").values_list("link_id", "status", "brand")
+    for link_id, status, brand in rows:
+        total[link_id] += 1
+        if status == LinkProducts.FetchStatus.OK:
+            read[link_id] += 1
+            if brand:
+                by_link[link_id][brand] += 1
     result = {}
     for link_id, brands in by_link.items():
+        needed = min(MIN_READ, math.ceil(total[link_id] * MIN_READ_SHARE))
+        if read[link_id] < needed:
+            continue
         brand, count = brands.most_common(1)[0]
         result[link_id] = brand if count * 2 >= read[link_id] else ""
     return result
