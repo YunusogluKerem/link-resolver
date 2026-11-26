@@ -4,6 +4,14 @@ Platformlarda paylaşılan linkleri (çoğu kısa link) son adresine kadar takip
 
 Stack: Python 3.12, Django 5.2 (LTS), Django REST Framework, simplejwt, httpx (async, HTTP/2), openpyxl, SQLite, Docker.
 
+## Özet
+
+- **Veri:** 4000 satır, 3305 benzersiz URL; tamamı yaklaşık 3,5 dakikada çözülür.
+- **Son URL:** satırların %98'inde bulunur (3907 / 4000).
+- **Marka:** satırların %17,3'ünde tespit edilir. Hepsiburada'da %40, Trendyol'da %1,3; nedeni [Bilinen sınırlamalar](#bilinen-sınırlamalar) bölümündedir.
+- **Kurulum:** `.env` ve Excel yerine konduktan sonra tek komut: `docker compose up -d`.
+- **API:** yalnızca admin kullanıcıya açık, JWT ile; sayfa başına 1000 kayıt.
+
 ## Hızlı başlangıç (Docker)
 
 ```bash
@@ -231,7 +239,7 @@ Kurallar (`links/brands.py`):
 
 **Marka olmayan alan adları da ayrı bir dosyadadır: `links/non_brand_domains.txt`.** Bölümleri: pazaryeri, çok markalı perakendeci (Boyner, CarrefourSA, iHerb), sosyal medya, haber, link kısaltıcı, link-in-bio, platform (bilet, form, müzik, site kurucu), kurum (`.org`, `.gov.tr`, `.edu.tr`), bahis, elle kontrol edilip marka olmadığı görülen siteler ve "belirsiz". "Belirsiz" bölümünde örnek veride görülen, adından ve URL'sinden ne olduğu anlaşılmayan siteler durur; biri kontrol edene kadar marka sayılmazlar. Perakendecide satılan bir marka URL'de geçiyorsa yine sayılır (`boyner.com.tr/kiko-milano-...` → `KIKO Milano`). Bir satır bir alan adı (`youtube.com`, alt alan adlarıyla), bir uzantı (`org`) veya her uzantıdaki bir ad (`amazon.*`) olabilir. Dosyaya satır eklemek kod değişikliği gerektirmez.
 
-4. kuralda marka adı iki kaynaktan gelir:
+4\. kuralda marka adı iki kaynaktan gelir:
 
 - **`og:site_name`:** çözümleme sırasında son sayfanın zaten okunan ilk 64 KB'ında bu etiket varsa değeri zincirin son adımına `site_name` olarak yazılır (ek istek yoktur). 40 karakterden uzun (slogan) veya alan adının kendisi olan değerler kullanılmaz.
 - **Alan adı:** `site_name` yoksa ad alan adından türetilir; alt alan adı ve uzantı (`com.tr`, `co.uk`) atılır. Ad marka listesinde varsa listedeki yazımı kullanılır (`www2.hm.com` → `H&M`).
@@ -295,7 +303,7 @@ Daha önce marka bulunan satırlardan yalnızca 4'ü markasını kaybetti, o da 
 
 **Elle kontrol:** 60 alan adlık örnekte (ilk 40 + rastgele 20) doğruluk %77–90 (6 yanlış, 8 belirsiz). Bu ölçüm düzeltmelerden önce yapıldı. Örnek, marka sayılan 153 alan adından satır sayısına göre ilk 40 ile kalanlardan rastgele seçilen 20 alan adıdır; kontrol sitelere girilmeden, yalnızca ada bakılarak yapıldı. Alt sınır belirsizleri yanlış, üst sınır doğru sayar. Bulunan 6 yanlış sonradan listeye işlendi (perakendeci veya "marka değil"); 8 belirsiz olduğu gibi bırakıldı.
 
-**Rakamlar çalıştırmadan çalıştırmaya değişir.** Aynı gün içinde, aynı IP'den yapılan önceki bir çalıştırmada sonuç `ok` 1679, `resolved` 2256, `blocked` 46 idi. Geliştirme sırasında aynı siteler birkaç kez tarandığı için son çalıştırmada bazıları daha sıkı davrandı: Hepsiburada 136 satırda son sayfada 403 döndü (önceki çalıştırmada hepsi 200 idi), bazı küçük mağaza siteleri de ürün sayfalarında 429 verdi. Son URL çoğunda yine de bilindiği için marka oranı değişmedi (342 → 343).
+**Rakamlar çalıştırmadan çalıştırmaya değişir.** Siteler aynı IP'den gelen tekrarlı taramalara giderek daha sıkı davranır. Aynı gün yapılan daha önceki bir çalıştırmada dağılım `ok` 1679, `resolved` 2256, `blocked` 46 idi. Bir gün sonra (26 Kasım) repodan klonlanarak yapılan çalıştırmada `ok` 1068, `resolved` 2804, `blocked` 108, `error` 20 oldu: Hepsiburada bu kez 711 satırın 540'ında son sayfada 403 döndü. Son URL bu satırlarda yine kaydedildiği için marka oranı neredeyse aynı kaldı (690 → 680 satır, %17,3 → %17,0).
 
 ## Bilinen sınırlamalar
 
