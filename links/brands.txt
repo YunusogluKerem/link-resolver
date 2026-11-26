@@ -1,0 +1,238 @@
+# Known product brands, one per line:  Display Name | alias, alias
+# Matching ignores case, accents and punctuation ("Estée Lauder" matches "estee-lauder").
+#
+# The list was extended with brands seen in the sample data, so the hit rate on
+# that data is optimistic compared with unseen links (see README).
+
+# --- also everyday words (Mavi = blue, Eti = meat, Yumoş = soft, Mac = Apple's) ---
+# `^` means: counted only at the start of a marketplace store name, product
+# slug or search text ("/magaza/mavi", "q=mavi boxer"), never in the middle of
+# a slug ("bebe-mavi-kazak"). Trendyol product pages are not affected: there
+# the URL structure says which part is the brand.
+^Mavi
+^Mango
+^Eti
+^Jumbo
+^Taç
+^Twist
+^Network
+^Loft
+^Hayat
+^M.A.C | mac, mac cosmetics
+^Fakir
+^Yumoş
+^Pastel
+^Prima
+^Finish
+^Guess
+^Familia
+
+# --- cosmetics & personal care ---
+Estée Lauder
+Clinique
+Yves Rocher
+CeraVe
+Missha
+La Roche-Posay | la roche posay, laroche posay
+Bioderma
+Vichy
+Avène
+Eucerin
+Sebamed
+Neutrogena
+The Ordinary
+Cosrx
+L'Oréal | loreal, loreal paris, l oreal paris, l or al, lorealprofessionnel, loreal professionnel
+Maybelline | maybelline new york
+NYX
+Flormar
+Pinkflash | pink flash
+Golden Rose
+Farmasi
+Note Cosmetics | note cosmetique
+Nivea
+Garnier
+Dove
+Pantene
+Elidor
+Head & Shoulders | head shoulders, head and shoulders
+Kérastase
+Olaplex
+Oral-B | oralb
+Colgate
+Gillette
+Kiperin
+Mustela
+Lancôme
+Dior
+Chanel
+Gucci
+Versace
+Burberry
+Kiehl's | kiehls
+Bobbi Brown
+KIKO Milano | kikomilano, kiko
+Tangle Teezer
+Bargello
+Alix Avien
+Siveno
+The Purest Solutions
+Bioblas
+Kompedan
+
+# --- fashion & shoes ---
+LC Waikiki | lcw, lcwaikiki
+Koton
+DeFacto
+Zara
+H&M | hm
+Bershka
+Stradivarius
+Pull&Bear | pull bear, pull and bear
+Massimo Dutti
+Nike
+Adidas
+Puma
+Skechers
+New Balance
+Converse
+Vans
+Reebok
+Under Armour
+Columbia
+The North Face
+Tommy Hilfiger
+Calvin Klein | calvinklein
+Lacoste
+U.S. Polo Assn. | us polo assn, us polo, uspa
+Levi's | levis
+Penti
+Oxxo
+İpekyol
+Beymen
+Vakko
+Kiğılı
+Altınyıldız Classics | altinyildiz
+Colin's | colins
+Derimod
+Hotiç
+Kinetix
+Lumberjack
+Mayoral
+Shoeby
+Trendyolmilla | trendyol milla
+Suwen
+Marks & Spencer | marks spencer
+Decathlon
+Crocs
+Birkenstock
+Swarovski
+Pandora
+Atasay
+Michael Kors
+Parfois
+LTB
+Dagi
+Tudors
+D'S Damat | ds damat, d s damat
+Ray-Ban | rayban
+Casio
+Voit
+Gore-Tex | goretex
+Vicco
+Igor
+
+# --- home & kitchen ---
+English Home
+Mudo | mudo home, mudo concept
+Madame Coco
+Karaca
+Korkmaz
+Emsan
+Paşabahçe
+Tefal
+Schafer
+Bambum
+Yataş
+IKEA
+Linens
+Chakra
+Özdilek
+Evidea
+Tupperware
+Stanley
+Villeroy & Boch | villeroy boch
+WMF
+Fissler
+İrya
+Milk&Moo | milk moo
+Smeg
+Hoover
+Kahve Dünyası
+
+# --- electronics & appliances ---
+Apple
+Samsung
+Xiaomi
+Huawei
+Philips
+Dyson
+Arçelik
+Beko
+Vestel
+Bosch
+Siemens
+Braun
+Arzum
+Sinbo
+Lenovo
+Asus
+Sony
+JBL
+Anker
+Roborock
+Fantom
+Kärcher
+Logitech
+Canon
+Garmin
+TCL
+SanDisk
+Oraimo
+Petkit
+
+# --- groceries, cleaning, baby ---
+Bingo
+Fairy
+Ariel
+Persil
+Omo
+Vernel
+Molfix
+Sleepy
+Selpak
+Orkid
+Kotex
+Nescafé
+Lipton
+Ülker
+Torku
+Chicco
+Philips Avent | avent
+Aptamil
+Bebelac
+LEGO
+Barbie
+Lifecell
+Solgar
+Orzax
+Nutraxin
+Supradyn
+Voonka
+Venatura
+Mattel
+Magna-Tiles
+Carioca
+Uni Baby
+Cybex
+Vanish

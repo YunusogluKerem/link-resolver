@@ -1,0 +1,70 @@
+from django.db import models
+
+
+class Links(models.Model):
+    """A raw link exactly as it was shared, tied to the content it came from.
+
+    Model and field names follow the schema in the task document.
+    """
+
+    # `id` is the automatic primary key (BigAutoField).
+    content_id = models.BigIntegerField(db_index=True, help_text="`id` column of the source Excel")
+    link = models.CharField(max_length=2048, help_text="Raw link, cleaned of the `{...}` array wrapper")
+
+    class Meta:
+        db_table = "links"
+        verbose_name = "link"
+        verbose_name_plural = "links"
+        ordering = ["id"]
+        constraints = [
+            # The same link is legitimately shared by many contents (695 rows in
+            # the sample file), so only the exact pair is unique. This is also
+            # what makes the import safe to run twice.
+            models.UniqueConstraint(fields=["content_id", "link"], name="uniq_content_link"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.content_id}: {self.link[:80]}"
+
+
+class LinkDetails(models.Model):
+    """The outcome of resolving one link.
+
+    The first three fields are the schema from the task document; the rest are
+    additions, each justified in the README.
+    """
+
+    class Status(models.TextChoices):
+        OK = "ok", "OK"  # final page answered normally
+        RESOLVED = "resolved", "Resolved"  # redirects followed, final URL known, but that page refused us (403)
+        BLOCKED = "blocked", "Blocked"  # refused on the very first request: no redirect seen at all
+        TIMEOUT = "timeout", "Timeout"
+        ERROR = "error", "Error"  # DNS failure, invalid URL, too many redirects, 404/5xx...
+
+    # One detail row per link. A OneToOneField is a foreign key with a unique
+    # constraint: the column is still `link_id` as in the schema, and re-running
+    # the resolver updates the row instead of piling up duplicates.
+    link = models.OneToOneField(Links, on_delete=models.CASCADE, related_name="detail")
+    # Empty only when the very first request failed (blocked / timeout / error).
+    link_detail = models.TextField(blank=True, help_text="Final URL after following all redirects")
+    brand_exist = models.BooleanField(default=False)
+
+    # --- additions to the schema ---
+    brand_name = models.CharField(max_length=100, null=True, blank=True)
+    # The marketplace's own numeric brand id(s), when the redirect chain carries
+    # them (Trendyol: `BrandIds=670` or `617,101640`). Kept as text for a later
+    # id -> name mapping; empty for most links.
+    marketplace_brand_id = models.CharField(max_length=100, blank=True, default="")
+    redirect_chain = models.JSONField(default=list, blank=True, help_text="Every hop: url + status code")
+    status = models.CharField(max_length=10, choices=Status.choices, db_index=True)
+    status_code = models.PositiveSmallIntegerField(null=True, blank=True, help_text="HTTP status of the last hop")
+    resolved_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "link_details"
+        verbose_name = "link detail"
+        verbose_name_plural = "link details"
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"{self.link_id} -> {self.link_detail[:80]} [{self.status}]"

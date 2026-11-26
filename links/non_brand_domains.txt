@@ -1,0 +1,332 @@
+# Domains that are NOT a brand's own website.
+#
+# Any site that is not listed here is taken to be a brand's own site, and its
+# name counts as the brand (see brands.py, rule 4). Adding a line here needs no
+# code change; run `python manage.py detect_brands` afterwards.
+#
+# Line formats:
+#   youtube.com    that domain and all its subdomains (m.youtube.com)
+#   org            a whole ending: every domain that ends with .org
+#   amazon.*       that name on any ending (amazon.com.tr, amazon.de, link.amazon)
+#
+# A [section] names the category of the lines below it. Only [marketplace]
+# changes how a URL is read (store names and search text are checked against
+# the brand list); every other section only says "this domain is not a brand".
+#
+# The list was built from the hosts seen in the sample data plus well-known
+# sites. It was classified by name, without visiting each site.
+
+[marketplace]
+# Many sellers under one roof: the site's own name is never the product's brand.
+trendyol.*
+trendyol-milla.*
+hepsiburada.*
+amazon.*
+n11.*
+ciceksepeti.*
+pazarama.*
+shopier.*
+ebay.*
+shopee.*
+aliexpress.*
+temu.*
+etsy.*
+wildberries.*
+joybuy.*
+hipicon.com
+kucukoteller.com.tr
+# App stores list other companies' apps.
+apps.apple.com
+podcasts.apple.com
+music.apple.com
+play.google.com
+
+[retailer]
+# Shops that sell many brands: the shop's name is not the product's brand.
+# (A listed brand in the URL still counts: boyner.com.tr/kiko-milano-...)
+boyner.com.tr
+carrefoursa.com
+iherb.com
+eveshop.com.tr
+kitapyurdu.com
+bkmkitap.com
+ulta.com
+revolve.com
+zumub.com
+nickis.com
+elitpet.com
+korendy.com.tr
+onual.com
+ferruhfilizoptik.com.tr
+hellohair.online
+duyumarket.com.tr
+swissnutrition.com
+dailycristina.com
+moonakids.com
+# Store chains with their own name on the door are still shops, not product
+# brands; for the same reason they are not in brands.txt.
+sephora.*
+gratis.com
+watsons.*
+rossmann.*
+migros.com.tr
+a101.com.tr
+teknosa.com
+mediamarkt.*
+vatanbilgisayar.com
+dr.com.tr
+idefix.com
+flo.com.tr
+zalando.*
+asos.com
+douglas.*
+notino.*
+lookfantastic.*
+
+[social]
+# Social networks, video and messaging.
+youtube.com
+youtu.be
+instagram.com
+ig.me
+facebook.com
+fb.com
+fb.me
+m.me
+tiktok.com
+x.com
+twitter.com
+t.co
+whatsapp.com
+wa.me
+t.me
+telegram.org
+twitch.tv
+kick.com
+linkedin.com
+pinterest.com
+snapchat.com
+threads.net
+discord.com
+discord.gg
+reddit.com
+vk.com
+nsosyal.com
+letterboxd.com
+
+[news]
+# Newspapers, magazines, radio, portals and news blogs.
+antalyahakkinda.com
+artimekan.com
+foodsdigitale.com
+log.com.tr
+themagger.com
+havasosyalmedya.com
+tourismtoday.net
+izmirdesondakika.com.tr
+medyaege.com.tr
+medyaankara.com
+turkiyegazetesi.com.tr
+cnnturk.com
+mynet.com
+akhisarhaber.net
+t24.com.tr
+turizmdosyasi.com
+turizmvizyon.com
+scenenow.com
+hola.tr
+digitalage.com.tr
+episodedergi.com
+magdergi.com
+paradergi.com.tr
+vogue.*
+motorsport.com
+motor1.com
+balleralert.com
+sportskeeda.com
+stupiddope.com
+yahoo.com
+washingtonpost.com
+wsvn.com
+miamilivingmagazine.com
+businessinsider.com
+thestar.com
+rollingout.com
+fussball-news.de
+thedailybriefing.io
+omroepwest.nl
+karadenizfm.com.tr
+apacikradyo.com.tr
+esashaber.com.tr
+mansethaber.com
+gazeteoksijen.com
+sabah.com.tr
+havahaber.com
+bigumigu.com
+dunya.com
+kisadalga.net
+karar.com
+muzikonair.com
+newinzurich.com
+pembeteknoloji.com.tr
+guzellikyayinda.com
+hurriyet.com.tr
+milliyet.com.tr
+sozcu.com.tr
+haberturk.com
+ntv.com.tr
+cumhuriyet.com.tr
+ensonhaber.com
+haberler.com
+sondakika.com
+onedio.com
+webtekno.com
+shiftdelete.net
+donanimhaber.com
+bbc.com
+bbc.co.uk
+cnn.com
+nytimes.com
+theguardian.com
+reuters.com
+bloomberg.com
+forbes.com
+
+[shortener]
+# Short links and "open in app" links. Normally these redirect onwards; they
+# end up as the final URL only when the redirect could not be followed.
+ty.gl
+tyml.gl
+hb.biz
+bit.ly
+tinyurl.com
+goo.gl
+linkwb.ru
+openinapp.co
+pgbuynow.com
+adj.st
+onelink.me
+app.link
+page.link
+
+[link-in-bio]
+# Link collections and smart links of creators.
+linktr.ee
+lnk.bio
+bio.link
+link.me
+linktw.in
+lnk.to
+band.link
+fanlink.tv
+carrd.co
+linkiste.com
+yeklinks.ir
+shopmy.us
+beacons.ai
+linkin.bio
+taplink.cc
+campsite.bio
+solo.to
+
+[platform]
+# Tools and services that host other people's content: tickets and bookings,
+# forms and documents, music, newsletters, payments, site builders.
+bubilet.com.tr
+biletinial.com
+passo.com.tr
+biletix.com
+ticketmaster.*
+tiget.net
+iticket.az
+tuboleta.com.do
+passline.com
+adticket.de
+tikkio.com
+entrio.hr
+soldout.com.tr
+tiyatrolar.com.tr
+vidipass.com
+luma.com
+lu.ma
+eventbrite.com
+mindbody.nl
+mindbodyonline.com
+lumant.nu
+visitcloud.com
+google.com
+forms.gle
+teams.microsoft.com
+forms.office.com
+cloud.microsoft
+spotify.com
+yandex.ru
+naver.com
+substack.com
+medium.com
+steady.page
+patreon.com
+kiwify.com.br
+srookpay.com
+colormytree.net
+blogpay.co.kr
+myshopify.com
+wixsite.com
+blogspot.com
+wordpress.com
+github.com
+notion.site
+
+[organization]
+# Associations, public bodies and schools are not product brands.
+org
+org.tr
+org.uk
+gov
+gov.tr
+edu
+edu.tr
+k12.tr
+bel.tr
+tennis.com.au
+nrl.com
+
+[not-brand]
+# Looked at by hand and found not to be a brand's own site: personal blogs,
+# an information site, a dog breeder.
+almankurdu.com
+menopozakademisi.net
+sinanhamamsarilar.com
+ezgithedelusional.com
+
+[gambling]
+# Betting and casino sites.
+1xmatches.online
+1xbet.*
+bet365.*
+bets10.*
+mostbet.*
+betsson.*
+
+[unclear]
+# Seen in the sample data, but neither the name nor the URL says what the site
+# is. Not counted as a brand until someone checks it.
+otvet.co
+winf.site
+exp.world
+marinatr.com
+helbing.world
+todestheater.ru
+basroldeyim.com
+kralailesi.com
+dugunumuzvar.com
+ludimayaki.ru
+monis.ba
+bachorr.com
+sjumo.com
+erasmusgram.com
+thenomuniverse.com
+ziogaming.com
+pkbrsports.com
+hitmanlive.com
+land-grazien.de

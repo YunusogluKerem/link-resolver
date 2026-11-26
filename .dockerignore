@@ -1,0 +1,15 @@
+# Keep secrets, customer data and local state out of the image.
+.env
+*.xlsx
+*.docx
+PROJE_BRIEF.md
+data/
+db.sqlite3
+*.sqlite3
+
+.venv/
+.git/
+__pycache__/
+*.pyc
+staticfiles/
+.DS_Store

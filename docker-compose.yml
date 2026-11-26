@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    env_file: .env  # copy .env.example to .env first; real secrets stay out of the repository
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      # The SQLite file lives on a named volume, so data survives restarts and rebuilds.
+      - sqlite_data:/app/db
+      # Excel files are read from the host; customer data is never baked into the image.
+      - ./data:/app/data:ro
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:

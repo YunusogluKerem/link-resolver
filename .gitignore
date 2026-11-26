@@ -1,0 +1,23 @@
+# Python / Django
+.venv/
+__pycache__/
+*.pyc
+staticfiles/
+
+# Local database and secrets
+db.sqlite3
+*.sqlite3
+.env
+
+# Customer data never goes into the repository (see README)
+*.xlsx
+data/*
+!data/.gitkeep
+
+# OS / editor
+.DS_Store
+~$*
+
+# The company's task document and private working notes are not part of the code
+*.docx
+PROJE_BRIEF.md
